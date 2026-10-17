@@ -1,0 +1,21 @@
+{
+  "name": "blinka-ingest-invoice",
+  "version": "1.0.0",
+  "description": "Envía una foto, PDF o texto de cobro sintético desde WhatsApp o Telegram y dispara el pipeline de Blinka Guard.",
+  "webhook": {
+    "method": "POST",
+    "path": "/api/webhooks/openclaw",
+    "headers": {
+      "x-openclaw-secret": "${OPENCLAW_WEBHOOK_SECRET}"
+    },
+    "body": {
+      "kind": "ingest",
+      "invoiceId": "{{invoiceId}}",
+      "payload": {
+        "channel": "{{channel}}",
+        "text": "{{text}}",
+        "media": "{{media}}"
+      }
+    }
+  }
+}

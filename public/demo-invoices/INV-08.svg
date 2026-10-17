@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="820" viewBox="0 0 640 820">
+<rect width="640" height="820" fill="#f4f6f8"/>
+    <rect x="36" y="28" width="568" height="764" fill="#ffffff" stroke="#d8dee8"/>
+    <rect x="36" y="28" width="568" height="74" fill="#121826"/>
+    <text x="60" y="72" fill="#ffffff" font-family="ui-sans-serif, sans-serif" font-size="20">LexGlobal Advisory Partners</text>
+    <text x="60" y="150" fill="#5c6575" font-family="ui-sans-serif, sans-serif" font-size="13">DOCUMENTO SINTETICO · INV-08</text>
+    <text x="60" y="190" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="16">LGP-2026-018</text>
+    <text x="60" y="214" fill="#5c6575" font-family="ui-sans-serif, sans-serif" font-size="13">2026-10-16</text>
+    <text x="60" y="280" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="16">Retainer legal de octubre 2026.</text>
+    <text x="60" y="360" fill="#5c6575" font-family="ui-sans-serif, sans-serif" font-size="14">Subtotal</text>
+    <text x="520" y="360" text-anchor="end" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="14">1,800 USD</text>
+    <text x="60" y="390" fill="#5c6575" font-family="ui-sans-serif, sans-serif" font-size="14">Impuesto</text>
+    <text x="520" y="390" text-anchor="end" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="14">0 USD</text>
+    <text x="60" y="440" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="18">Total a pagar</text>
+    <text x="520" y="440" text-anchor="end" fill="#121826" font-family="ui-sans-serif, sans-serif" font-size="18">1,800 USD</text>
+</svg>

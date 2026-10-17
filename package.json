@@ -1,17 +1,22 @@
 {
-  "name": "blinka-scaffold",
+  "name": "blinka-guard",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:engine": "tsx scripts/verify-engine.ts",
+    "demo:invoices": "tsx scripts/write-demo-svgs.ts"
   },
   "dependencies": {
+    "js-sha256": "^0.11.1",
+    "lucide-react": "^0.545.0",
     "next": "16.4.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -21,6 +26,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

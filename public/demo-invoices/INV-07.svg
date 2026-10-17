@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="820" viewBox="0 0 640 820">
+<rect width="640" height="820" fill="#0b141a"/>
+      <rect x="0" y="0" width="640" height="72" fill="#1f2c34"/>
+      <text x="32" y="44" fill="#e9edef" font-family="ui-sans-serif, sans-serif" font-size="18">AndesSoft Devs</text>
+      <rect x="48" y="120" width="420" height="150" rx="12" fill="#005c4b"/>
+      <text x="68" y="160" fill="#e9edef" font-family="ui-sans-serif, sans-serif" font-size="16">Urgente: hay que pagar hoy</text>
+      <text x="68" y="190" fill="#e9edef" font-family="ui-sans-serif, sans-serif" font-size="16">450 USD</text>
+      <text x="68" y="230" fill="#d1fae5" font-family="ui-sans-serif, sans-serif" font-size="15">Cuenta nueva ••••3310</text>
+      <text x="68" y="280" fill="#8aa" font-family="ui-sans-serif, sans-serif" font-size="13">La cuenta del contrato es ••••7788</text>
+</svg>

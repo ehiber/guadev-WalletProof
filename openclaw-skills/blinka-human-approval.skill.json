@@ -1,0 +1,22 @@
+{
+  "name": "blinka-human-approval",
+  "version": "1.0.0",
+  "description": "Cuando una factura queda ESCALATED, envía al CFO el resumen con FX, veredicto JEV y comandos para aprobar o rechazar.",
+  "webhook": {
+    "method": "POST",
+    "path": "/api/webhooks/openclaw",
+    "headers": {
+      "x-openclaw-secret": "${OPENCLAW_WEBHOOK_SECRET}"
+    },
+    "body": {
+      "kind": "approval",
+      "invoiceId": "{{invoiceId}}",
+      "payload": {
+        "decision": "{{decision}}",
+        "note": "{{note}}",
+        "totalPayableUsd": "{{totalPayableUsd}}",
+        "fxRate": "{{fxRate}}"
+      }
+    }
+  }
+}

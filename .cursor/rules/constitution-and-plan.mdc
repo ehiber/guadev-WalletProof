@@ -1,0 +1,39 @@
+---
+description: Constitución y plan de cortes de Blinka Guard. Los 8 veredictos son el test de aceptación.
+alwaysApply: true
+---
+
+# Blinka Guard — constitución y cortes
+
+`CONTEXT.md` es el brief. Este archivo es el contrato. No adelantar un corte.
+
+## Constitución
+
+1. Ningún modelo aprueba un pago si falla una regla en código. Veredicto en AND: reglas duras primero; JEV solo si `HardRules.passed`.
+2. Aritmética, fechas y FX son TypeScript puro. Prohibido usar IA para números. `totalPayableUsd = Number((totalPayable / rateToUsd).toFixed(2))`. El tope usa `totalPayable`, nunca el subtotal (INV-03: 460 pasaría; 533.60 escala).
+3. Solo facturas sintéticas. Prohibido SROIE, CORD o datos reales de empresas.
+4. Con reglas por defecto ($500 / $2,500 / 85%), `npm run verify:engine` imprime la matriz de abajo. Si no coincide, el corte no está listo.
+5. Cada decisión congela `rulesSnapshot`, `fxSnapshot` y el SHA-256 de `{ invoiceId, totalPayableUsd, rulesSnapshot, fxSnapshot, hardRulesResult, jevResult, finalStatus }`.
+6. Cambiar de modelo no reabre un veredicto cerrado por código. Un reintento más capaz solo corre si Zod falla o la explicación viene vacía.
+
+Si varias reglas fallan, `BLOCKED` (duplicado exacto o presupuesto) gana a `ESCALATED` (whitelist o tope). El presupuesto descuenta solo lo `APPROVED`, en el orden del dataset. JEV bajo umbral escala a una persona, no a un LLM más caro.
+
+## Aceptación
+
+- INV-01 APPROVED — CloudNova, $420 USD, JEV 98%.
+- INV-02 APPROVED — 1,680,000 COP / 4,200 = $400 USD.
+- INV-03 ESCALATED — total $533.60 supera el tope; el subtotal no manda.
+- INV-04 ESCALATED — $145, proveedor fuera de whitelist.
+- INV-05 BLOCKED — misma ref y vendor que INV-01.
+- INV-06 ESCALATED — snapshot JEV: incoherencia de contrato. Sin red.
+- INV-07 BLOCKED — snapshot JEV: anomalía HIGH. Sin red.
+- INV-08 BLOCKED — $1,800 no cabe tras $420 + $400 ya aprobados.
+
+## Cortes
+
+1. **Motor.** Next.js (App Router, TS, Tailwind). Tipos, `FX_LEDGER`, reglas, dataset, `2-hard-rules.ts`, `pipeline.ts`, `verify:engine` en verde.
+2. **UI snapshot.** Dashboard 0ms, sliders what-if, inspector partido. Sin APIs.
+3. **IA en vivo.** Vision, JEV y Groq detrás de `🔥 Re-Run Live AI`, con fallback y router barato-primero. Generador en `/dev/invoice-generator`.
+4. **Cierre.** CSV, modal BYOK, bitácora `globalThis.openclawEvents` y skills de OpenClaw.
+
+Sin Supabase. El estado del sandbox vive en memoria.

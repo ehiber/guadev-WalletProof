@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="820" viewBox="0 0 640 820">
+<rect width="640" height="820" fill="#efe6d6"/>
+      <rect x="48" y="40" width="544" height="740" fill="#fffaf1" stroke="#e2d3b8"/>
+      <text x="80" y="120" font-family="Segoe Script, cursive" font-size="28" fill="#243f73">Carlos Méndez</text>
+      <text x="80" y="160" font-family="Segoe Script, cursive" font-size="18" fill="#3d4d73">Refrigeración y Eléctricos</text>
+      <text x="80" y="250" font-family="Segoe Script, cursive" font-size="22" fill="#1d2744">Reparación de aire acondicionado en la oficina de Medellín.</text>
+      <text x="80" y="340" font-family="Segoe Script, cursive" font-size="32" fill="#1d2744">Total 145 USD</text>
+      <text x="80" y="400" font-family="Segoe Script, cursive" font-size="16" fill="#667">2026-10-16</text>
+</svg>

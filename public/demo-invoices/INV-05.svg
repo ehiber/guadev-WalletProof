@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="820" viewBox="0 0 420 820">
+<rect width="420" height="820" fill="#d9d3c7"/>
+      <g transform="rotate(-1.4 210 410)">
+        <rect x="70" y="36" width="280" height="740" fill="#f7f4ee" stroke="#c8c2b6"/>
+        <text x="210" y="78" text-anchor="middle" font-family="ui-monospace, monospace" font-size="18" fill="#222">CLOUDNOVA POS</text>
+        <text x="210" y="102" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#444">TICKET SINTETICO</text>
+        <text x="90" y="150" font-family="ui-monospace, monospace" font-size="13" fill="#222">CN-2026-1042</text>
+        <text x="90" y="176" font-family="ui-monospace, monospace" font-size="13" fill="#222">2026-10-16</text>
+        <text x="90" y="230" font-family="ui-monospace, monospace" font-size="13" fill="#222">Compute reserved — 420.00 USD</text>
+        <text x="90" y="290" font-family="ui-monospace, monospace" font-size="16" fill="#111">TOTAL 420 USD</text>
+        <text x="90" y="330" font-family="ui-monospace, monospace" font-size="11" fill="#555">MISMA REF QUE INV-01</text>
+      </g>
+</svg>
