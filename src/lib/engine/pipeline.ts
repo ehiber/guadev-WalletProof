@@ -9,16 +9,25 @@ function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string
   if (record.finalStatus === "APPROVED") {
     return `Aprobado en automático. El total equivalente es ${usd} USD, el proveedor está autorizado y las reglas duras y JEV coinciden.`;
   }
+  if (record.finalStatus === "BLOCKED") {
+    if (record.jevResult?.socialEngineeringRisk.score === "HIGH") {
+      return `Rechazado por JEV. El mensaje tiene riesgo alto de manipulación o cambio de cuenta. Total equivalente: ${usd} USD.`;
+    }
+    if (record.hardRulesResult.reasons.length > 0) {
+      return `Rechazado. ${record.hardRulesResult.reasons.join(" ")} Total equivalente: ${usd} USD.`;
+    }
+    return `Rechazado por un criterio configurado para frenar el pago. Total equivalente: ${usd} USD.`;
+  }
   if (record.hardRulesResult.reasons.length > 0 && !record.hardRulesResult.passed) {
-    return `No se aprueba en automático. ${record.hardRulesResult.reasons.join(" ")} Total equivalente: ${usd} USD.`;
+    return `Por revisar. ${record.hardRulesResult.reasons.join(" ")} Total equivalente: ${usd} USD.`;
   }
   if (record.jevResult?.socialEngineeringRisk.score === "HIGH") {
-    return `Bloqueado por JEV. El mensaje tiene riesgo alto de manipulación o cambio de cuenta. Total equivalente: ${usd} USD.`;
+    return `Por revisar. El mensaje tiene riesgo alto de manipulación o cambio de cuenta. Total equivalente: ${usd} USD.`;
   }
   if (record.hardRulesResult.passed && !record.jevResult) {
-    return `Escalado a una persona. JEV no se consultó. Total equivalente: ${usd} USD.`;
+    return `Por revisar. JEV no se consultó. Total equivalente: ${usd} USD.`;
   }
-  return `Escalado a una persona. JEV no confirma coherencia, unicidad y riesgo bajo al umbral vigente. Total equivalente: ${usd} USD.`;
+  return `Por revisar. JEV no confirma coherencia, unicidad y riesgo bajo al umbral vigente. Total equivalente: ${usd} USD.`;
 }
 
 export function evaluateInvoice(

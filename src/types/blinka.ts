@@ -16,11 +16,30 @@ export type DocumentKind = "pdf" | "handwritten" | "thermal" | "chat";
 
 export type IntakeChannel = "dataset" | "email" | "chat" | "upload";
 
+export type CriterionAction = "ESCALATED" | "BLOCKED";
+
+export type CriterionId =
+  | "duplicate"
+  | "budget"
+  | "anomalyHigh"
+  | "whitelist"
+  | "limit"
+  | "lineCheck"
+  | "contract"
+  | "semanticDuplicate";
+
+export interface RuleCriterion {
+  id: CriterionId;
+  action: CriterionAction;
+  enabled: boolean;
+}
+
 export interface CompanyRules {
   maxAutoApproveUsd: number;
   monthlyBudgetUsd: number;
   jevConfidenceThreshold: number;
   semanticDuplicateMinProbability: number;
+  criteria: RuleCriterion[];
 }
 
 export interface FxRate {

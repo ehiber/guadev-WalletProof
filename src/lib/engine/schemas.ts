@@ -1,11 +1,32 @@
+import { normalizeRules } from "@/lib/engine/criteria";
 import type { CompanyRules, Invoice } from "@/types/blinka";
 import { z } from "zod";
+
+const criterionIds = [
+  "duplicate",
+  "budget",
+  "anomalyHigh",
+  "whitelist",
+  "limit",
+  "lineCheck",
+  "contract",
+  "semanticDuplicate",
+] as const;
 
 export const rulesSchema = z.object({
   maxAutoApproveUsd: z.number().positive(),
   monthlyBudgetUsd: z.number().positive(),
   jevConfidenceThreshold: z.number().min(0.5).max(0.99),
   semanticDuplicateMinProbability: z.number().min(0).max(1),
+  criteria: z
+    .array(
+      z.object({
+        id: z.enum(criterionIds),
+        action: z.enum(["ESCALATED", "BLOCKED"]),
+        enabled: z.boolean(),
+      }),
+    )
+    .optional(),
 });
 
 export const invoiceSchema = z.object({
@@ -57,7 +78,7 @@ export const invoiceSchema = z.object({
 
 export function parseRules(value: unknown): CompanyRules | null {
   const parsed = rulesSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? normalizeRules(parsed.data) : null;
 }
 
 export function parseInvoices(value: unknown): Invoice[] | null {

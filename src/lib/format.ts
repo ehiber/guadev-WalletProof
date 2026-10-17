@@ -15,14 +15,28 @@ export function intakeLabel(invoice: { id: string; intakeChannel?: IntakeChannel
   return "Dataset";
 }
 
+const VENDOR_INITIALS: Record<string, string> = {
+  "vendor-cloudnova": "CN",
+  "vendor-pixelsur": "PS",
+  "vendor-andessoft": "AD",
+  "vendor-carlos": "CM",
+  "vendor-lexglobal": "LA",
+};
+
+export function vendorInitials(vendorId: string, name: string): string {
+  if (VENDOR_INITIALS[vendorId]) return VENDOR_INITIALS[vendorId];
+  const letters = name.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, "").slice(0, 2).toUpperCase();
+  return letters || "NV";
+}
+
 export function statusLabel(status: DecisionStatus): string {
-  if (status === "APPROVED") return "Pagada";
-  if (status === "ESCALATED") return "Escalada";
-  return "Bloqueada";
+  if (status === "APPROVED") return "Pagado";
+  if (status === "ESCALATED") return "Por revisar";
+  return "Rechazado";
 }
 
 export function statusClass(status: DecisionStatus): string {
-  if (status === "APPROVED") return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-  if (status === "ESCALATED") return "bg-amber-50 text-amber-800 ring-amber-200";
-  return "bg-rose-50 text-rose-800 ring-rose-200";
+  if (status === "APPROVED") return "bg-approved-bg text-approved";
+  if (status === "ESCALATED") return "bg-warn-bg text-warn";
+  return "bg-danger-bg text-danger";
 }

@@ -1,5 +1,7 @@
-import { Dashboard } from "@/components/dashboard";
+"use client";
+
+import { InboxView } from "@/components/views/inbox-view";
 
 export default function Home() {
-  return <Dashboard />;
+  return <InboxView />;
 }

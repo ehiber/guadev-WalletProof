@@ -1,64 +1,131 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f4f6;
-  --foreground: #121826;
+  --background: #f7f7f4;
+  --foreground: #1c253a;
   color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: #1c253a;
+  --color-muted: #596477;
+  --color-canvas: #f7f7f4;
+  --color-surface: #ffffff;
+  --color-line: #dce0e8;
+  --color-accent: #2a4bd0;
+  --color-accent-hover: #203ca8;
+  --color-warn: #80540b;
+  --color-warn-bg: #fff2d8;
+  --color-danger: #a03f37;
+  --color-danger-bg: #fbece8;
+  --color-approved: #30563c;
+  --color-approved-bg: #e8f1e6;
+  --color-nav-active: #e6ebff;
+  --color-nav-active-text: #233ca0;
+  --font-sans: "Segoe UI", Inter, Arial, sans-serif;
+  --font-mono: Consolas, ui-monospace, monospace;
+  --radius-surface: 12px;
+  --radius-dialog: 14px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
 button,
 a {
-  font: inherit;
+  touch-action: manipulation;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+*:focus-visible {
+  outline: 3px solid #2a4bd0;
+  outline-offset: 4px;
+}
+
+::selection {
+  background: #dce3ff;
+  color: #1c253a;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
+  min-height: 2.5rem;
   border-radius: 999px;
-  border: 1px solid #e6e8ee;
+  border: 1px solid #d1d7e5;
   background: white;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8125rem;
-  color: #121826;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1c253a;
 }
 
 .btn:hover {
-  background: #f4f6f8;
+  background: #f0f2fa;
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.48;
 }
 
 .btn-hot {
-  border-color: #121826;
-  background: #121826;
+  border-color: #2a4bd0;
+  background: #2a4bd0;
   color: white;
 }
 
 .btn-hot:hover {
-  background: #2a3142;
+  background: #203ca8;
 }
 
 .field {
   margin-top: 0.35rem;
   width: 100%;
-  border-radius: 0.6rem;
-  border: 1px solid #e6e8ee;
-  padding: 0.5rem 0.7rem;
+  border-radius: 7px;
+  border: 1px solid #c8d0e0;
+  padding: 0.65rem 0.75rem;
   font-size: 0.875rem;
+  color: #1c253a;
+  background: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

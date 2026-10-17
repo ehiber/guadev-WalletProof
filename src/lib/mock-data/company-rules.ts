@@ -1,3 +1,4 @@
+import { DEFAULT_CRITERIA } from "@/lib/engine/criteria";
 import type { CompanyRules, Vendor } from "@/types/blinka";
 
 export const DEFAULT_RULES: CompanyRules = {
@@ -5,6 +6,7 @@ export const DEFAULT_RULES: CompanyRules = {
   monthlyBudgetUsd: 2500,
   jevConfidenceThreshold: 0.85,
   semanticDuplicateMinProbability: 0.8,
+  criteria: DEFAULT_CRITERIA.map((item) => ({ ...item })),
 };
 
 export const VENDORS: Vendor[] = [

@@ -1,5 +1,6 @@
-import { clearDocuments, pruneDocuments } from "@/lib/inbound/documents";
+import { cloneRules } from "@/lib/engine/criteria";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
+import { clearDocuments, pruneDocuments } from "@/lib/inbound/documents";
 import { DEFAULT_RULES } from "@/lib/mock-data/company-rules";
 import type { CompanyRules, Invoice } from "@/types/blinka";
 
@@ -25,16 +26,16 @@ declare global {
 const ARRIVED_CAP = 16;
 
 function inbox(): SessionInbox {
-  globalThis.blinkaSession ??= { rules: { ...DEFAULT_RULES }, arrived: [], human: {} };
+  globalThis.blinkaSession ??= { rules: cloneRules(DEFAULT_RULES), arrived: [], human: {} };
   return globalThis.blinkaSession;
 }
 
 export function sessionRules(): CompanyRules {
-  return { ...inbox().rules };
+  return cloneRules(inbox().rules);
 }
 
 export function publishRules(rules: CompanyRules) {
-  inbox().rules = { ...rules };
+  inbox().rules = cloneRules(rules);
 }
 
 export function clearHumanNotes() {
@@ -67,6 +68,6 @@ export function rememberHuman(invoiceId: string, note: HumanNote) {
 }
 
 export function clearSession() {
-  globalThis.blinkaSession = { rules: { ...DEFAULT_RULES }, arrived: [], human: {} };
+  globalThis.blinkaSession = { rules: cloneRules(DEFAULT_RULES), arrived: [], human: {} };
   clearDocuments();
 }
