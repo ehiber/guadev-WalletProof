@@ -54,7 +54,7 @@ export type DocumentRead =
     };
 
 const READ_SYSTEM =
-  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description e issueDate. currency es el código ISO 4217 impreso, o el símbolo si no hay código (€ es EUR). issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
+  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description e issueDate. currency es el código ISO 4217. Si el documento imprime un símbolo local, conviértelo: Bs, Bs., Bs.S, Bs.F, Bs.D y bolívar son VES; € es EUR. issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
 
 const FIELD_LABELS: Record<string, string> = {
   invoiceNumber: "número de factura",

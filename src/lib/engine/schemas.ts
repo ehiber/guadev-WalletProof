@@ -22,6 +22,7 @@ export const invoiceSchema = z.object({
   description: z.string(),
   documentKind: z.enum(["pdf", "handwritten", "thermal", "chat"]),
   documentLabel: z.string(),
+  intakeChannel: z.enum(["dataset", "email", "chat", "upload"]).optional(),
   documentPath: z.string(),
   periodKey: z.string(),
   lineItems: z.array(z.string()),

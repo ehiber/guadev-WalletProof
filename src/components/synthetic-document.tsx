@@ -1,9 +1,30 @@
 import { renderInvoiceSvg } from "@/lib/demo-document";
 import type { Invoice } from "@/types/blinka";
 
+function usesFilePreview(path: string): boolean {
+  return path.startsWith("blob:") || path.startsWith("data:") || path.startsWith("/api/documents/");
+}
+
+export function DocumentThumb({ invoice }: { invoice: Invoice }) {
+  const path = invoice.documentPath;
+  if (!usesFilePreview(path)) return null;
+  if (invoice.documentKind === "pdf") {
+    return (
+      <iframe
+        title={invoice.id}
+        src={path}
+        className="pointer-events-none h-10 w-10 shrink-0 rounded border border-[#e6e8ee] bg-white"
+      />
+    );
+  }
+  return (
+    <img alt="" src={path} className="h-10 w-10 shrink-0 rounded border border-[#e6e8ee] bg-white object-cover" />
+  );
+}
+
 export function SyntheticDocument({ invoice }: { invoice: Invoice }) {
   const path = invoice.documentPath;
-  if (path.startsWith("blob:") || path.startsWith("data:")) {
+  if (usesFilePreview(path)) {
     if (invoice.documentKind === "pdf") {
       return <iframe title={invoice.id} src={path} className="h-80 w-full rounded-lg border border-[#e6e8ee] bg-white" />;
     }

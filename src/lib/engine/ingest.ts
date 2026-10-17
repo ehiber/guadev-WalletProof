@@ -7,9 +7,10 @@ import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
 import { sha256Bytes, sha256Hex } from "@/lib/engine/sha256";
 import { matchVendor } from "@/lib/mock-data/company-rules";
+import { rememberDocument } from "@/lib/inbound/documents";
 import { pushOpenClawEvent } from "@/lib/openclaw/constants";
 import { rememberArrival } from "@/lib/session-inbox";
-import type { AuditRecord, CompanyRules, DocumentKind, Invoice, PriorDocument } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DocumentKind, IntakeChannel, Invoice, PriorDocument } from "@/types/blinka";
 
 export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
@@ -80,6 +81,25 @@ function kindFor(channel: IngestChannel, mime?: string): { documentKind: Documen
   return { documentKind: "pdf", documentLabel: "Documento recibido" };
 }
 
+function intakeFor(channel: IngestChannel): IntakeChannel {
+  if (channel === "email") return "email";
+  if (channel === "chat") return "chat";
+  return "upload";
+}
+
+function evidenceFor(channel: IngestChannel, text: string | undefined, fallback: string): string {
+  const body = text?.trim();
+  if (channel !== "email" || !body) return fallback;
+  const excerpt = body.length > 1500 ? `${body.slice(0, 1500)}…` : body;
+  return `${fallback}\n${excerpt}`;
+}
+
+function withPreview(invoice: Invoice, bytes?: Uint8Array, mime?: string): Invoice {
+  if (!bytes?.byteLength) return invoice;
+  rememberDocument(invoice.id, bytes, mime || (invoice.documentKind === "pdf" ? "application/pdf" : "image/jpeg"));
+  return { ...invoice, documentPath: `/api/documents/${encodeURIComponent(invoice.id)}` };
+}
+
 function receivedId(channel: IngestChannel, hash: string, existing: Invoice[]): string {
   const prefix = channel === "pdf" ? "PDF" : channel === "chat" ? "CHAT" : "MAIL";
   let id = `${prefix}-${hash.slice(0, 10)}`;
@@ -119,7 +139,8 @@ function unreadableOutcome(
     documentPath: "",
     periodKey: partial.issueDate?.slice(0, 7) || "",
     lineItems: partial.description?.trim() ? [partial.description.trim()] : [],
-    evidenceNote: `Documento recibido por ${input.channel}. ${read.reason}`,
+    evidenceNote: evidenceFor(input.channel, input.text, `Documento recibido por ${input.channel}. ${read.reason}`),
+    intakeChannel: intakeFor(input.channel),
     extractionValid: false,
     extractionNote: read.reason,
     jevSnapshot: null,
@@ -176,7 +197,12 @@ function invoiceFromPartial(
     documentPath: "",
     periodKey: partial.issueDate.slice(0, 7),
     lineItems: [partial.description?.trim() || "Documento recibido"],
-    evidenceNote: `Documento recibido por ${input.channel}. ${lineCheck ?? "Las reglas usan el total impreso."}`,
+    evidenceNote: evidenceFor(
+      input.channel,
+      input.text,
+      `Documento recibido por ${input.channel}. ${lineCheck ?? "Las reglas usan el total impreso."}`,
+    ),
+    intakeChannel: intakeFor(input.channel),
     lineCheck,
     jevSnapshot: null,
   };
@@ -204,7 +230,9 @@ export async function ingestIncoming(input: {
   const extractMs = Math.max(1, Math.round(performance.now() - started));
   const hash = input.bytes && input.bytes.byteLength > 0 ? sha256Bytes(input.bytes) : sha256Hex(input.text ?? "");
   if (!read.ok && !payableIsAuditable(read.partial)) {
-    return unreadableOutcome(input, read, extractMs);
+    const outcome = unreadableOutcome(input, read, extractMs);
+    outcome.invoice = withPreview(outcome.invoice, input.bytes, input.mime);
+    return outcome;
   }
   const auditable = !read.ok && payableIsAuditable(read.partial) ? read.partial : null;
   const vendor = read.ok ? matchVendor(read.extraction.vendorName) : null;
@@ -227,7 +255,8 @@ export async function ingestIncoming(input: {
         documentPath: "",
         periodKey: read.extraction.issueDate.slice(0, 7),
         lineItems: [read.extraction.description],
-        evidenceNote: `Documento sintético recibido por ${input.channel}.`,
+        evidenceNote: evidenceFor(input.channel, input.text, `Documento sintético recibido por ${input.channel}.`),
+        intakeChannel: intakeFor(input.channel),
         jevSnapshot: null,
       }
     : invoiceFromPartial(input, auditable!, hash, read.lineCheck);
@@ -296,6 +325,7 @@ export async function ingestIncoming(input: {
     },
     explanation: { text: explanation.text, mode: explanation.mode },
   };
+  outcome.invoice = withPreview(outcome.invoice, input.bytes, input.mime);
   return outcome;
 }
 

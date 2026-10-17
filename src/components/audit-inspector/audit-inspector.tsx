@@ -1,7 +1,7 @@
 "use client";
 
 import { SyntheticDocument } from "@/components/synthetic-document";
-import { amount, statusClass, statusLabel, usd } from "@/lib/format";
+import { amount, intakeLabel, statusClass, statusLabel, usd } from "@/lib/format";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import type { AuditRecord, DecisionStatus, Invoice, JevResult } from "@/types/blinka";
 import { useState } from "react";
@@ -38,7 +38,9 @@ export function AuditInspector({
     <section className="grid gap-4 rounded-xl border border-[#e6e8ee] bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-[#5c6575]">{invoice.documentLabel}</p>
+          <p className="text-xs uppercase tracking-wide text-[#5c6575]">
+            {intakeLabel(invoice)} · {invoice.documentLabel}
+          </p>
           <h2 className="text-lg font-semibold text-[#121826]">{invoice.id}</h2>
         </div>
         <span className={`rounded-full px-2 py-1 text-xs ring-1 ${statusClass(status)}`}>{statusLabel(status)}</span>

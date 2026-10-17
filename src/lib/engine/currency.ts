@@ -27,6 +27,18 @@ const ALIASES: Record<string, string> = {
   "PESO ARGENTINO": "ARS",
   "BOLIVAR": "VES",
   "BOLÍVAR": "VES",
+  BOLIVARES: "VES",
+  "BOLIVAR SOBERANO": "VES",
+  "BOLIVARES SOBERANOS": "VES",
+  "BOLIVAR DIGITAL": "VES",
+  "BOLIVARES DIGITALES": "VES",
+  BS: "VES",
+  "BS.": "VES",
+  BSS: "VES",
+  "BS.S": "VES",
+  BSF: "VES",
+  "BS.F": "VES",
+  "BS.D": "VES",
 };
 
 export function isIsoCurrency(code: string): boolean {
@@ -36,8 +48,10 @@ export function isIsoCurrency(code: string): boolean {
 export function normalizeCurrency(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
-  const compact = trimmed.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
-  const alias = ALIASES[trimmed] ?? ALIASES[compact] ?? ALIASES[compact.replace(/[^A-Z$€£¥₹]/g, "")];
-  const code = alias ?? compact.replace(/[^A-Z]/g, "");
-  return ISO_4217.has(code) ? code : null;
+  const compact = trimmed.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ");
+  const punctuated = compact.replace(/[^A-Z.$€£¥₹]/g, "");
+  const letters = compact.replace(/[^A-Z$€£¥₹]/g, "");
+  const alias = ALIASES[trimmed] ?? ALIASES[compact] ?? ALIASES[punctuated] ?? ALIASES[letters];
+  if (alias) return alias;
+  return ISO_4217.has(letters) ? letters : null;
 }

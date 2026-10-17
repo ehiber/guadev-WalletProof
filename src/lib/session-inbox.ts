@@ -1,3 +1,4 @@
+import { clearDocuments, pruneDocuments } from "@/lib/inbound/documents";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import { DEFAULT_RULES } from "@/lib/mock-data/company-rules";
 import type { CompanyRules, Invoice } from "@/types/blinka";
@@ -46,6 +47,7 @@ export function rememberArrival(arrival: Arrival) {
   if (index >= 0) session.arrived[index] = arrival;
   else session.arrived.push(arrival);
   if (session.arrived.length > ARRIVED_CAP) session.arrived.splice(0, session.arrived.length - ARRIVED_CAP);
+  pruneDocuments(new Set(session.arrived.map((item) => item.invoice.id)));
 }
 
 export function arrivedInvoices(): Invoice[] {
@@ -66,4 +68,5 @@ export function rememberHuman(invoiceId: string, note: HumanNote) {
 
 export function clearSession() {
   globalThis.blinkaSession = { rules: { ...DEFAULT_RULES }, arrived: [], human: {} };
+  clearDocuments();
 }

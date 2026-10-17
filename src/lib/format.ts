@@ -1,4 +1,4 @@
-import type { DecisionStatus } from "@/types/blinka";
+import type { DecisionStatus, IntakeChannel } from "@/types/blinka";
 
 export function usd(value: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -6,6 +6,13 @@ export function usd(value: number): string {
 
 export function amount(value: number, currency: string): string {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ${currency}`;
+}
+
+export function intakeLabel(invoice: { id: string; intakeChannel?: IntakeChannel }): string {
+  if (invoice.intakeChannel === "email" || invoice.id.startsWith("MAIL-")) return "Correo";
+  if (invoice.intakeChannel === "chat" || invoice.id.startsWith("CHAT-")) return "Chat";
+  if (invoice.intakeChannel === "upload" || invoice.id.startsWith("PDF-")) return "Carga";
+  return "Dataset";
 }
 
 export function statusLabel(status: DecisionStatus): string {

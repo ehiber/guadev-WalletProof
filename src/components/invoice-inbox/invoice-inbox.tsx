@@ -1,6 +1,7 @@
 "use client";
 
-import { amount, statusClass, statusLabel, usd } from "@/lib/format";
+import { DocumentThumb } from "@/components/synthetic-document";
+import { amount, intakeLabel, statusClass, statusLabel, usd } from "@/lib/format";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
 import { Flame } from "lucide-react";
 
@@ -61,10 +62,11 @@ export function InvoiceInbox({
         ))}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-[#5c6575]">
             <tr>
               <th className="px-3 py-2 font-medium">Factura</th>
+              <th className="px-3 py-2 font-medium">Vía</th>
               <th className="px-3 py-2 font-medium">Proveedor</th>
               <th className="px-3 py-2 font-medium">USD</th>
               <th className="px-3 py-2 font-medium">Estado</th>
@@ -84,11 +86,17 @@ export function InvoiceInbox({
                   onClick={() => onSelect(invoice.id)}
                 >
                   <td className="px-3 py-3">
-                    <p className="font-medium text-[#121826]">{invoice.id}</p>
-                    <p className="text-xs text-[#5c6575]">
-                      {!invoice.id.startsWith("INV-") || ranLive(invoice.id) ? "🔥 Pipeline en vivo" : "⚡ Snapshot 0ms"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <DocumentThumb invoice={invoice} />
+                      <div>
+                        <p className="font-medium text-[#121826]">{invoice.id}</p>
+                        <p className="text-xs text-[#5c6575]">
+                          {!invoice.id.startsWith("INV-") || ranLive(invoice.id) ? "🔥 Pipeline en vivo" : "⚡ Snapshot 0ms"}
+                        </p>
+                      </div>
+                    </div>
                   </td>
+                  <td className="px-3 py-3 text-[#121826]">{intakeLabel(invoice)}</td>
                   <td className="px-3 py-3">
                     <p>{invoice.vendorName}</p>
                     <p className="text-xs text-[#5c6575]">{amount(invoice.totalPayable, invoice.currency)}</p>

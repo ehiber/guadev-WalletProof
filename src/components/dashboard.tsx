@@ -3,6 +3,7 @@
 import { AuditInspector } from "@/components/audit-inspector/audit-inspector";
 import { ByokModal } from "@/components/byok-modal";
 import { InvoiceInbox } from "@/components/invoice-inbox/invoice-inbox";
+import { MailInbox } from "@/components/mail-inbox/mail-inbox";
 import { Navbar } from "@/components/navbar/navbar";
 import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
 import { RuleBuilder } from "@/components/rule-builder/rule-builder";
@@ -10,12 +11,13 @@ import { evaluateBatch } from "@/lib/engine/pipeline";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import { emptyLayer, normalizeKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { usd } from "@/lib/format";
+import type { GmailStatus } from "@/lib/inbound/types";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { DEFAULT_RULES } from "@/lib/mock-data/company-rules";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import type { AuditRecord, CompanyRules, DecisionStatus, Invoice } from "@/types/blinka";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 const KEYS_STORAGE = "blinka-byok";
 const KEYS_EVENT = "blinka-byok-change";
@@ -71,6 +73,8 @@ export function Dashboard() {
   const [byokOpen, setByokOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [mail, setMail] = useState<GmailStatus | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
   const storedKeys = useSyncExternalStore(subscribeKeys, readStoredKeys, () => "");
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
 
@@ -134,6 +138,63 @@ export function Dashboard() {
     }
     void pull();
     const timer = window.setInterval(() => void pull(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const refreshMail = useCallback(async () => {
+    setMailBusy(true);
+    try {
+      const response = await fetch("/api/inbound/gmail", { method: "POST" });
+      const body = (await response.json().catch(() => null)) as GmailStatus | null;
+      if (!response.ok || !body) throw new Error("No se pudo revisar el correo.");
+      setMail(body);
+    } catch {
+      setMail((current) => ({
+        connected: current?.connected ?? false,
+        address: current?.address ?? null,
+        lastPollAt: current?.lastPollAt ?? null,
+        lastError: "No se pudo revisar el correo.",
+        messages: current?.messages ?? [],
+      }));
+    } finally {
+      setMailBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function tick() {
+      setMailBusy(true);
+      try {
+        const response = await fetch("/api/inbound/gmail", { method: "POST" });
+        const body = (await response.json().catch(() => null)) as GmailStatus | null;
+        if (cancelled) return;
+        if (!response.ok || !body) throw new Error("No se pudo revisar el correo.");
+        setMail(body);
+      } catch {
+        if (!cancelled) {
+          setMail((current) => ({
+            connected: current?.connected ?? false,
+            address: current?.address ?? null,
+            lastPollAt: current?.lastPollAt ?? null,
+            lastError: "No se pudo revisar el correo.",
+            messages: current?.messages ?? [],
+          }));
+        }
+      } finally {
+        if (!cancelled) setMailBusy(false);
+      }
+    }
+    void (async () => {
+      const response = await fetch("/api/inbound/gmail");
+      const body = (await response.json().catch(() => null)) as GmailStatus | null;
+      if (!cancelled && response.ok && body) setMail((current) => current ?? body);
+    })();
+    void tick();
+    const timer = window.setInterval(() => void tick(), 25_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -328,6 +389,7 @@ export function Dashboard() {
           <Kpi label="Presupuesto disponible" value={usd(available)} />
         </section>
         {liveError ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{liveError}</p> : null}
+        <MailInbox status={mail} busy={mailBusy} onRefresh={() => void refreshMail()} />
         <div className="grid items-start gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <InvoiceInbox
             invoices={invoices}

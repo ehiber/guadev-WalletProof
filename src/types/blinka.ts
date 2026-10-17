@@ -14,6 +14,8 @@ export type CostCenter =
 
 export type DocumentKind = "pdf" | "handwritten" | "thermal" | "chat";
 
+export type IntakeChannel = "dataset" | "email" | "chat" | "upload";
+
 export interface CompanyRules {
   maxAutoApproveUsd: number;
   monthlyBudgetUsd: number;
@@ -66,6 +68,7 @@ export interface Invoice {
   description: string;
   documentKind: DocumentKind;
   documentLabel: string;
+  intakeChannel?: IntakeChannel;
   documentPath: string;
   periodKey: string;
   lineItems: string[];
