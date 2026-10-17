@@ -7,34 +7,72 @@ export function StatsView() {
   const session = useSession();
   const counts = { APPROVED: 0, ESCALATED: 0, BLOCKED: 0 };
   for (const record of session.records) counts[session.statusOf(record)] += 1;
-  const autonomy = session.invoices.length ? Math.round((session.autonomous.length / session.invoices.length) * 100) : 0;
-  return (
-    <div>
-      <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Estadísticas</h1>
-      <p className="mt-2 mb-7 max-w-[72ch] text-[13px] text-muted">
-        Conteos de esta sesión. La latencia es la media de JEV en los records que sí lo consultaron, no un tiempo ilustrativo.
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Autonomía operativa" value={`${autonomy}%`} detail={`${session.autonomous.length} de ${session.invoices.length} se pagan solas`} />
-        <Stat label="Pagos indebidos" value={String(session.improper.length)} detail="Aprobados con una regla dura en fallo" />
-        <Stat label="Latencia JEV" value={`${session.latency} ms`} detail="Media de los snapshots o de la ejecución en vivo" />
-        <Stat label="Disponible" value={usd(session.available)} detail={`Consumido ${usd(session.consumed)} · Retenido ${usd(session.retained)}`} />
-      </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Stat label="Pagado" value={String(counts.APPROVED)} detail="Veredicto APPROVED" />
-        <Stat label="Por revisar" value={String(counts.ESCALATED)} detail="Veredicto ESCALATED" />
-        <Stat label="Rechazado" value={String(counts.BLOCKED)} detail="Veredicto BLOCKED" />
-      </div>
-    </div>
-  );
-}
+  const total = session.invoices.length;
+  const automatic = counts.APPROVED + counts.BLOCKED;
+  const autonomy = total ? Math.round((automatic / total) * 100) : 0;
+  const bars = [
+    { label: "Pagado", value: counts.APPROVED, tone: "approved" },
+    { label: "Por revisar", value: counts.ESCALATED, tone: "review" },
+    { label: "Rechazado", value: counts.BLOCKED, tone: "blocked" },
+  ];
 
-function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <article className="rounded-xl border border-line bg-surface px-4 py-4">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-[11px] text-muted">{detail}</p>
-    </article>
+    <>
+      <div className="page-heading">
+        <div>
+          <h1>Estadísticas</h1>
+          <p>El trabajo que el agente resuelve por tu equipo.</p>
+        </div>
+        <span className="badge neutral">Octubre 2026</span>
+      </div>
+      <section className="efficiency">
+        <div>
+          <h2>
+            {total} facturas, una operación más ágil.
+          </h2>
+          <p>
+            {automatic} de {total} se resuelven sin intervención. Disponible {usd(session.available)}.
+          </p>
+          <p className="small">La latencia es la media de JEV en los registros que sí lo consultaron.</p>
+        </div>
+        <div className="efficiency-time">
+          <strong>{session.latency > 0 ? `${session.latency} ms` : "—"}</strong>
+          <span>media JEV · esta sesión</span>
+        </div>
+      </section>
+      <div className="stats-grid">
+        <section>
+          <strong>{counts.APPROVED}</strong>
+          <h2>Pagos simulados</h2>
+          <p>Registrados en el conjunto actual</p>
+        </section>
+        <section>
+          <strong>{session.autonomous.length}</strong>
+          <h2>Decisiones automáticas</h2>
+          <p>Pagos sin intervención humana</p>
+        </section>
+        <section>
+          <strong>{counts.ESCALATED}</strong>
+          <h2>Por revisar</h2>
+          <p>Necesitan una decisión humana</p>
+        </section>
+      </div>
+      <section className="panel">
+        <h2>Distribución de las facturas</h2>
+        {bars.map((bar) => (
+          <div key={bar.label} className="stat-bar">
+            <span>{bar.label}</span>
+            <div>
+              <i className={bar.tone} style={{ width: `${total ? (bar.value / total) * 100 : 0}%` }} />
+            </div>
+            <strong>{bar.value}</strong>
+          </div>
+        ))}
+        <p className="small muted">
+          {autonomy}% de las facturas resueltas automáticamente en este conjunto. Pagos indebidos: {session.improper.length}.
+        </p>
+      </section>
+      <p className="page-footer">Los conteos salen del lote en memoria. No hay tiempos ilustrativos.</p>
+    </>
   );
 }

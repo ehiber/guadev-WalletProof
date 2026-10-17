@@ -54,7 +54,7 @@ export type DocumentRead =
     };
 
 const READ_SYSTEM =
-  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description e issueDate. currency es el código ISO 4217. Si el documento imprime un símbolo local, conviértelo: Bs, Bs., Bs.S, Bs.F, Bs.D y bolívar son VES; € es EUR. issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
+  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description e issueDate. currency es un código ISO 4217 o una de estas criptomonedas: BTC, ETH, USDT, USDC. Si el documento imprime un símbolo local, conviértelo: Bs, Bs., Bs.S, Bs.F, Bs.D y bolívar son VES; € o euro es EUR; R$ o real es BRL; sol, soles o S/ es PEN; colón o ₡ es CRC; peso chileno es CLP; boliviano es BOB; rand es ZAR. USDC en Base, Ethereum, Polygon, Celo o Solana sigue siendo USDC. bitcoin o ₿ es BTC; ether o ethereum es ETH; tether es USDT; USD Coin es USDC. issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
 
 const FIELD_LABELS: Record<string, string> = {
   invoiceNumber: "número de factura",
@@ -149,7 +149,7 @@ export function readFailure(text: string): { partial: PartialExtraction; reason:
   if (!partial.vendorName?.trim()) gaps.push(FIELD_LABELS.vendorName);
   if (!partial.currency) {
     const printed = typeof raw.currency === "string" ? raw.currency.trim() : "";
-    gaps.push(printed ? `moneda (${printed} no es un código ISO 4217)` : FIELD_LABELS.currency);
+    gaps.push(printed ? `moneda (${printed} no es ISO 4217 ni BTC, ETH, USDT o USDC)` : FIELD_LABELS.currency);
   }
   if (partial.subtotal === undefined) gaps.push(FIELD_LABELS.subtotal);
   if (partial.taxAmount === undefined) gaps.push(FIELD_LABELS.taxAmount);

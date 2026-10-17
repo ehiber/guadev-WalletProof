@@ -14,6 +14,7 @@ const COLUMNS: Array<{ action: CriterionAction; title: string; hint: string }> =
 export function RulesView() {
   const session = useSession();
   const [dragId, setDragId] = useState<CriterionId | null>(null);
+  const [over, setOver] = useState<CriterionAction | null>(null);
   const approved = session.records.filter((record) => session.statusOf(record) === "APPROVED").length;
   const review = session.records.filter((record) => session.statusOf(record) === "ESCALATED").length;
   const blocked = session.records.filter((record) => session.statusOf(record) === "BLOCKED").length;
@@ -33,168 +34,154 @@ export function RulesView() {
   }
 
   return (
-    <div>
-      <div className="mb-7">
-        <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Reglas</h1>
-        <p className="mt-2 max-w-[72ch] text-[13px] text-muted">
-          Mover un criterio cambia la consecuencia al instante. Duplicado y presupuesto rechazan por defecto; la lista, el tope y JEV quedan por revisar. La tasa ausente y la extracción inválida siempre rechazan.
-        </p>
-      </div>
-      <ul className="mb-6 grid gap-2 md:grid-cols-2">
-        {session.rules.criteria.filter((item) => item.enabled).map((item) => (
-          <li key={item.id} className="rounded-lg border border-line bg-surface px-3 py-2 text-xs">
-            <strong>{CRITERION_LABEL[item.id]}</strong>
-            <span className="mt-1 block text-[11px] text-muted">
-              {valueOf(item, session.rules.maxAutoApproveUsd, session.rules.monthlyBudgetUsd, session.rules.jevConfidenceThreshold)} · {item.action === "BLOCKED" ? "Rechazar" : "Por revisar"}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <div className="grid items-start gap-7 lg:grid-cols-2">
-        <div className="grid gap-4">
-          {COLUMNS.map((column) => (
-            <section
-              key={column.action}
-              className="rounded-xl border border-line bg-surface p-6"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                if (dragId) move(dragId, column.action);
-                setDragId(null);
-              }}
-            >
-              <h2 className="text-lg font-semibold">{column.title}</h2>
-              <p className="mt-1 mb-4 text-xs text-muted">{column.hint}</p>
-              <div className="grid gap-2">
-                {session.rules.criteria
-                  .filter((item) => item.action === column.action)
-                  .map((item) => (
-                    <article
-                      key={item.id}
-                      draggable
-                      onDragStart={() => setDragId(item.id)}
-                      className={`rounded-[10px] border border-line px-3 py-3 ${item.enabled ? "bg-white" : "bg-[#f4f6fc] opacity-70"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <strong className="block text-xs">{CRITERION_LABEL[item.id]}</strong>
-                          <small className="text-[10px] text-muted">{item.enabled ? "Activo" : "Desactivado"}</small>
-                        </div>
-                        <label className="flex items-center gap-1.5 text-[11px]">
-                          <input type="checkbox" checked={item.enabled} onChange={() => toggle(item.id)} />
-                          Usar
-                        </label>
-                      </div>
-                      <label className="mt-3 block text-[11px] font-semibold">
-                        Mover a
-                        <select
-                          className="field mt-1"
-                          value={item.action}
-                          onChange={(event) => move(item.id, event.target.value as CriterionAction)}
-                        >
-                          <option value="ESCALATED">Por revisar</option>
-                          <option value="BLOCKED">Rechazado</option>
-                        </select>
-                      </label>
-                    </article>
-                  ))}
-              </div>
-            </section>
-          ))}
+    <>
+      <div className="page-heading">
+        <div>
+          <h1>Reglas</h1>
+          <p>Mover un criterio cambia la consecuencia al instante. Duplicado y presupuesto rechazan por defecto. La tasa ausente y la extracción inválida siempre rechazan.</p>
         </div>
-        <aside className="rounded-xl border border-line bg-surface p-6 lg:sticky lg:top-24">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Resultado ahora</h2>
-            <span className="rounded-[5px] bg-approved-bg px-1.5 py-1 text-[9px] font-semibold text-approved">En vivo</span>
+      </div>
+      <section className="panel">
+        <h2>Requisitos para pagar</h2>
+        <ul className="checks">
+          {session.rules.criteria
+            .filter((item) => item.enabled)
+            .map((item) => (
+              <li key={item.id}>
+                <span className="check-icon">✓</span>
+                <div>
+                  <strong>{CRITERION_LABEL[item.id]}</strong>
+                  <small>
+                    {valueOf(
+                      item,
+                      session.rules.maxAutoApproveUsd,
+                      session.rules.monthlyBudgetUsd,
+                      session.rules.jevConfidenceThreshold,
+                      session.rules.semanticDuplicateMinProbability,
+                    )}{" "}
+                    {item.action === "BLOCKED" ? "Rechazar" : "Por revisar"}
+                  </small>
+                </div>
+              </li>
+            ))}
+        </ul>
+      </section>
+      <div className="criteria-board">
+        {COLUMNS.map((column) => (
+          <section
+            key={column.action}
+            className={`criteria-lane${over === column.action ? " drag-over" : ""}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setOver(column.action);
+            }}
+            onDragLeave={() => setOver((current) => (current === column.action ? null : current))}
+            onDrop={() => {
+              if (dragId) move(dragId, column.action);
+              setDragId(null);
+              setOver(null);
+            }}
+          >
+            <header>
+              <h3>{column.title}</h3>
+              <span>{column.hint}</span>
+            </header>
+            {session.rules.criteria
+              .filter((item) => item.action === column.action)
+              .map((item) => (
+                <article
+                  key={item.id}
+                  className="criterion-card"
+                  draggable
+                  onDragStart={() => setDragId(item.id)}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setOver(null);
+                  }}
+                >
+                  <strong>{CRITERION_LABEL[item.id]}</strong>
+                  <p>{item.enabled ? "Activo en el motor." : "Desactivado. No decide esta factura."}</p>
+                  <div className="card-controls">
+                    <label>
+                      <input type="checkbox" checked={item.enabled} onChange={() => toggle(item.id)} />
+                      Activo
+                    </label>
+                  </div>
+                  <div className="move-control">
+                    <span>Mover a</span>
+                    <select value={item.action} onChange={(event) => move(item.id, event.target.value as CriterionAction)}>
+                      <option value="ESCALATED">Por revisar</option>
+                      <option value="BLOCKED">Rechazado</option>
+                    </select>
+                  </div>
+                </article>
+              ))}
+          </section>
+        ))}
+      </div>
+      <aside className="panel preview">
+        <div className="preview-summary">
+          <div>
+            <strong>{approved}</strong>
+            <small>Pagado</small>
           </div>
-          <div className="my-5 flex gap-6">
-            <Count label="Pagado" value={approved} />
-            <Count label="Por revisar" value={review} />
-            <Count label="Rechazado" value={blocked} />
+          <div>
+            <strong>{review}</strong>
+            <small>Por revisar</small>
           </div>
-          <Slider
-            label="Límite automático"
+          <div>
+            <strong>{blocked}</strong>
+            <small>Rechazado</small>
+          </div>
+        </div>
+        <label className="field">
+          <span>Límite automático (USD)</span>
+          <input
+            type="number"
             min={100}
             max={2000}
             step={10}
             value={session.rules.maxAutoApproveUsd}
-            display={usd(session.rules.maxAutoApproveUsd)}
-            onChange={(maxAutoApproveUsd) => session.updateRules({ ...session.rules, maxAutoApproveUsd })}
+            onChange={(event) => session.updateRules({ ...session.rules, maxAutoApproveUsd: Number(event.target.value) })}
           />
-          <Slider
-            label="Presupuesto del periodo"
+        </label>
+        <label className="field">
+          <span>Presupuesto del periodo (USD)</span>
+          <input
+            type="number"
             min={1000}
             max={10000}
             step={100}
             value={session.rules.monthlyBudgetUsd}
-            display={usd(session.rules.monthlyBudgetUsd)}
-            onChange={(monthlyBudgetUsd) => session.updateRules({ ...session.rules, monthlyBudgetUsd })}
+            onChange={(event) => session.updateRules({ ...session.rules, monthlyBudgetUsd: Number(event.target.value) })}
           />
-          <Slider
-            label="Confianza JEV"
+        </label>
+        <label className="range-field">
+          <span>
+            Confianza JEV
+            <small>{Math.round(session.rules.jevConfidenceThreshold * 100)}%</small>
+          </span>
+          <input
+            type="range"
             min={50}
             max={99}
             step={1}
             value={Math.round(session.rules.jevConfidenceThreshold * 100)}
-            display={`${Math.round(session.rules.jevConfidenceThreshold * 100)}%`}
-            onChange={(percent) => session.updateRules({ ...session.rules, jevConfidenceThreshold: percent / 100 })}
+            onChange={(event) => session.updateRules({ ...session.rules, jevConfidenceThreshold: Number(event.target.value) / 100 })}
           />
-          <p className="mt-4 text-[11px] text-muted">
-            {session.autonomous.length} de {session.invoices.length} se pagan solas con el veredicto del motor. Disponible {usd(session.available)}.
-          </p>
-        </aside>
-      </div>
-    </div>
+        </label>
+        <p className="budget-note">
+          {session.autonomous.length} de {session.invoices.length} se pagan solas. Disponible {usd(session.available)}. El cambio recalcula el lote al momento.
+        </p>
+      </aside>
+    </>
   );
 }
 
-function valueOf(item: RuleCriterion, limit: number, budget: number, confidence: number): string {
+function valueOf(item: RuleCriterion, limit: number, budget: number, confidence: number, semantic: number): string {
   if (item.id === "limit") return `Tope ${usd(limit)}`;
   if (item.id === "budget") return `Presupuesto ${usd(budget)}`;
-  if (item.id === "contract" || item.id === "semanticDuplicate") return `Umbral ${Math.round(confidence * 100)}%`;
+  if (item.id === "contract") return `Umbral ${Math.round(confidence * 100)}%`;
+  if (item.id === "semanticDuplicate") return `Umbral ${Math.round(semantic * 100)}%`;
   return "Criterio del lote";
-}
-
-function Count({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <strong className="block text-[26px] leading-tight font-medium">{value}</strong>
-      <small className="text-[10px] text-muted">{label}</small>
-    </div>
-  );
-}
-
-function Slider({
-  label,
-  min,
-  max,
-  step,
-  value,
-  display,
-  onChange,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  display: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="mt-4 block text-xs font-semibold">
-      <span className="flex justify-between">
-        {label}
-        <span className="font-medium text-muted">{display}</span>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-2 w-full accent-accent"
-      />
-    </label>
-  );
 }

@@ -1,62 +1,149 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { Button } from "@/components/ui/ui";
+import type { MailLogEntry, MailLogStatus } from "@/lib/inbound/types";
+import { RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const FOLDERS: Array<{ id: "all" | MailLogStatus; label: string }> = [
+  { id: "all", label: "Recibidos" },
+  { id: "ingested", label: "Ingresados" },
+  { id: "discarded", label: "Descartados" },
+  { id: "error", label: "Con error" },
+];
+
+function formatPoll(iso: string): string {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`;
+}
 
 export function MailView() {
   const session = useSession();
   const [query, setQuery] = useState("");
-  const messages = (session.mail?.messages ?? []).filter((message) =>
-    `${message.subject} ${message.from}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  const connected = session.mail?.connected ?? false;
+  const [folder, setFolder] = useState<(typeof FOLDERS)[number]["id"]>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const mail = mounted ? session.mail : null;
+  const busy = mounted && session.mailBusy;
+  const messages = (mail?.messages ?? []).filter((message) => {
+    const inFolder = folder === "all" || message.status === folder;
+    const haystack = `${message.subject} ${message.from} ${message.reason ?? ""}`.toLowerCase();
+    return inFolder && haystack.includes(query.trim().toLowerCase());
+  });
+  const selected = messages.find((message) => message.id === selectedId) ?? messages[0] ?? null;
+  const connected = mail?.connected ?? false;
 
   return (
-    <div>
-      <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
+    <>
+      <div className="page-heading">
         <div>
-          <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Bandeja de correos</h1>
-          <p className="mt-2 text-[13px] text-muted">
-            {connected ? session.mail?.address : "Sin buzón configurado"}. El sondeo real es el inbound de Gmail. No se redactan ni se envían mensajes desde aquí.
+          <h1>Bandeja de correos</h1>
+          <p>
+            {connected ? mail?.address : mounted ? "Sin buzón configurado" : "Cargando el sondeo"}. El sondeo real es el inbound de Gmail. Esta bandeja no redacta ni envía mensajes.
           </p>
         </div>
-        <Button type="button" disabled={session.mailBusy} onClick={() => void session.refreshMail()}>
-          {session.mailBusy ? "Revisando…" : "Actualizar"}
-        </Button>
+        <div className="heading-actions">
+          <button className="btn" type="button" disabled={busy} onClick={() => void session.refreshMail()}>
+            <RefreshCw className="icon" /> {busy ? "Revisando…" : "Actualizar"}
+          </button>
+        </div>
       </div>
-      <label className="mb-4 block max-w-sm">
-        <span className="mb-1.5 block text-xs font-semibold">Buscar</span>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} className="field mt-0" placeholder="Asunto o remitente" />
-      </label>
-      {session.mail?.lastError ? <p className="mb-4 rounded-lg bg-danger-bg px-4 py-3 text-xs text-danger">{session.mail.lastError}</p> : null}
-      <p className="mb-4 text-[11px] text-muted">
-        {session.mail?.lastPollAt ? `Último sondeo ${new Date(session.mail.lastPollAt).toLocaleString("es")}` : "Todavía no hay sondeo."} · {connected ? "Conectado" : "Desconectado"}
-      </p>
-      <ul className="overflow-hidden rounded-xl border border-line bg-surface">
-        {messages.length === 0 ? (
-          <li className="px-4 py-10 text-center text-sm text-muted">Todavía no entra correo.</li>
-        ) : (
-          messages.map((message) => (
-            <li key={`${message.id}-${message.at}`} className="border-t border-[#edf0f6] px-4 py-4 first:border-0">
-              <strong className="block text-xs">{message.subject || "Sin asunto"}</strong>
-              <p className="mt-1 text-[11px] text-muted">
-                {message.from} · {message.status}
-                {message.reason ? ` · ${message.reason}` : ""}
-              </p>
-              {message.attachments.length > 0 ? <p className="text-[11px] text-muted">{message.attachments.join(", ")}</p> : null}
-              <div className="mt-2 flex flex-wrap gap-3">
-                {message.invoiceIds.map((id) => (
-                  <Link key={id} href={`/facturas/${id}`} className="text-[11px] font-semibold text-accent no-underline">
-                    {id}
-                  </Link>
-                ))}
-              </div>
-            </li>
-          ))
-        )}
-      </ul>
-    </div>
+      {mail?.lastError ? (
+        <div className="notice error">
+          <p>{mail.lastError}</p>
+        </div>
+      ) : (
+        <div className="notice info">
+          <p>
+            {mail?.lastPollAt ? `Último sondeo ${formatPoll(mail.lastPollAt)}` : mounted ? "Todavía no hay sondeo." : "Cargando el sondeo."} ·{" "}
+            {connected ? "Conectado" : "Desconectado"}
+          </p>
+        </div>
+      )}
+      <div className="mail-toolbar">
+        <div className="tabs" aria-label="Carpetas">
+          {FOLDERS.map((item) => (
+            <button key={item.id} className="tab" type="button" aria-pressed={folder === item.id} onClick={() => setFolder(item.id)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <label className="search">
+          <Search className="icon" />
+          <span className="visually-hidden">Buscar correos</span>
+          <input type="search" value={query} placeholder="Buscar correos" onChange={(event) => setQuery(event.target.value)} />
+        </label>
+      </div>
+      <div className="mail-layout">
+        <section className="mail-list" aria-label="Correos recibidos">
+          {messages.length === 0 ? (
+            <div className="empty">
+              <h3>No hay correos en esta vista</h3>
+              <p>{mounted ? "Cambia la carpeta o la búsqueda." : "Cargando el sondeo."}</p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <button
+                key={`${message.id}-${message.at}`}
+                className={`mail-item${selected?.id === message.id ? " selected" : ""}`}
+                type="button"
+                onClick={() => setSelectedId(message.id)}
+              >
+                <strong>{message.subject || "Sin asunto"}</strong>
+                <small>
+                  {message.from}
+                  {message.reason ? ` · ${message.reason}` : ""}
+                </small>
+                <span>
+                  {statusLabel(message.status)} · {formatPoll(message.at)}
+                </span>
+              </button>
+            ))
+          )}
+        </section>
+        <section className="mail-reader">
+          {selected ? <Reader message={selected} /> : <div className="empty"><h3>Sin mensaje</h3><p>Elige un correo de la lista.</p></div>}
+        </section>
+      </div>
+      <p className="page-footer">El correo entra por Gmail. Desde aquí no se redacta ni se envía.</p>
+    </>
+  );
+}
+
+function statusLabel(status: MailLogStatus): string {
+  if (status === "ingested") return "Ingresado";
+  if (status === "discarded") return "Descartado";
+  return "Error";
+}
+
+function Reader({ message }: { message: MailLogEntry }) {
+  return (
+    <>
+      <div className="section-heading">
+        <div>
+          <h2>{message.subject || "Sin asunto"}</h2>
+          {message.invoiceIds.map((id) => (
+            <Link key={id} href={`/facturas/${id}`}>
+              Ver factura {id}
+            </Link>
+          ))}
+        </div>
+        <span className={`badge ${message.status === "ingested" ? "approved" : message.status === "error" ? "blocked" : "review"}`}>
+          {statusLabel(message.status)}
+        </span>
+      </div>
+      <article className="mail-message">
+        <header>
+          <strong>{message.from}</strong>
+          <small>{formatPoll(message.at)}</small>
+        </header>
+        <small>Entrada de Gmail · {statusLabel(message.status)}</small>
+        <p>{message.reason || "El sondeo no dejó un motivo adicional."}</p>
+        {message.attachments.length > 0 ? <p>Adjuntos: {message.attachments.join(", ")}</p> : null}
+      </article>
+    </>
   );
 }

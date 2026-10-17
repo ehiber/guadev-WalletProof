@@ -1,4 +1,4 @@
-import { isIsoCurrency } from "@/lib/engine/currency";
+import { isPayableCurrency } from "@/lib/engine/currency";
 import type { Invoice } from "@/types/blinka";
 import { z } from "zod";
 
@@ -6,7 +6,7 @@ export const extractionSchema = z
   .object({
     invoiceNumber: z.string().min(1),
     vendorName: z.string().min(1),
-    currency: z.string().regex(/^[A-Z]{3}$/).refine(isIsoCurrency),
+    currency: z.string().regex(/^[A-Z]{3,5}$/).refine(isPayableCurrency),
     subtotal: z.number().nonnegative(),
     taxAmount: z.number().nonnegative(),
     totalPayable: z.number().positive(),

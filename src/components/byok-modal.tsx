@@ -32,9 +32,9 @@ function ByokForm({
   const [jev, setJev] = useState(keys.jev ?? "");
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#121826]/40 p-4">
+    <div className="modal-backdrop">
       <form
-        className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-white p-5 shadow-xl"
+        className="modal-card"
         onSubmit={(event) => {
           event.preventDefault();
           onSave({
@@ -44,22 +44,22 @@ function ByokForm({
           });
         }}
       >
-        <h2 className="text-lg font-semibold text-[#121826]">Claves por capa</h2>
-        <p className="mt-1 text-sm text-[#5c6575]">
+        <h2>Claves por capa</h2>
+        <p className="decision-explanation">
           La lectura y la redacción usan OpenAI. Puedes repetir la misma clave en las dos capas. Las claves se quedan en
           este navegador. JEV sigue siendo TypeSafe.
         </p>
         <LayerFields title="Lectura" layer={read} onChange={setRead} />
         <LayerFields title="Redacción" layer={explain} onChange={setExplain} />
-        <label className="mt-4 block text-sm">
-          TYPESAFE_JEV_KEY
-          <input className="field" value={jev} autoComplete="off" onChange={(event) => setJev(event.target.value)} />
+        <label className="field">
+          <span>TYPESAFE_JEV_KEY</span>
+          <input value={jev} autoComplete="off" onChange={(event) => setJev(event.target.value)} />
         </label>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="button-row">
           <button className="btn" onClick={onClose} type="button">
             Cerrar
           </button>
-          <button className="btn btn-hot" type="submit">
+          <button className="btn primary" type="submit">
             Guardar en este navegador
           </button>
         </div>
@@ -78,34 +78,23 @@ function LayerFields({
   onChange: (layer: LayerConfig) => void;
 }) {
   return (
-    <fieldset className="mt-4 space-y-2 rounded-lg border border-[#e6e8ee] p-3">
-      <legend className="px-1 text-sm font-medium text-[#121826]">{title}</legend>
-      <label className="block text-sm">
-        Modelo
-        <input
-          className="field"
-          value={layer.model}
-          autoComplete="off"
-          onChange={(event) => onChange({ ...layer, model: event.target.value })}
-        />
+    <fieldset>
+      <legend>{title}</legend>
+      <label className="field">
+        <span>Modelo</span>
+        <input value={layer.model} autoComplete="off" onChange={(event) => onChange({ ...layer, model: event.target.value })} />
       </label>
-      <label className="block text-sm">
-        Modelo de reintento
+      <label className="field">
+        <span>Modelo de reintento</span>
         <input
-          className="field"
           value={layer.fallbackModel}
           autoComplete="off"
           onChange={(event) => onChange({ ...layer, fallbackModel: event.target.value })}
         />
       </label>
-      <label className="block text-sm">
-        API key de OpenAI
-        <input
-          className="field"
-          value={layer.apiKey ?? ""}
-          autoComplete="off"
-          onChange={(event) => onChange({ ...layer, apiKey: event.target.value })}
-        />
+      <label className="field">
+        <span>API key de OpenAI</span>
+        <input value={layer.apiKey ?? ""} autoComplete="off" onChange={(event) => onChange({ ...layer, apiKey: event.target.value })} />
       </label>
     </fieldset>
   );

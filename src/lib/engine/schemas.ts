@@ -1,3 +1,4 @@
+import { isPayableCurrency } from "@/lib/engine/currency";
 import { normalizeRules } from "@/lib/engine/criteria";
 import type { CompanyRules, Invoice } from "@/types/blinka";
 import { z } from "zod";
@@ -35,7 +36,7 @@ export const invoiceSchema = z.object({
   vendorId: z.string().min(1),
   vendorName: z.string().min(1),
   issueDate: z.string().min(1),
-  currency: z.string().regex(/^[A-Z]{3}$/),
+  currency: z.string().regex(/^[A-Z]{3,5}$/).refine(isPayableCurrency),
   subtotal: z.number(),
   taxAmount: z.number(),
   totalPayable: z.number(),

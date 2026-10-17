@@ -1,11 +1,9 @@
 "use client";
 
-import { SyntheticDocument } from "@/components/synthetic-document";
 import { useSession } from "@/components/session/session-provider";
-import { Button, StatusBadge } from "@/components/ui/ui";
 import { describeChecks } from "@/lib/engine/criteria";
-import { amount, intakeLabel, usd } from "@/lib/format";
-import { ArrowLeft } from "lucide-react";
+import { amount, originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { ArrowLeft, Check, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -18,21 +16,26 @@ export function DetailView({ id }: { id: string }) {
 
   if (!invoice || !record) {
     return (
-      <div>
-        <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-xs text-accent no-underline">
-          <ArrowLeft className="h-3.5 w-3.5" /> Facturas
+      <>
+        <Link href="/" className="back">
+          <ArrowLeft className="icon" /> Facturas
         </Link>
-        <h1 className="text-[28px] font-semibold">Factura no encontrada</h1>
-        <p className="mt-2 text-sm text-muted">Esa factura no está en la sesión actual.</p>
-      </div>
+        <h1>Factura no encontrada</h1>
+        <p>Esa factura no está en la sesión actual.</p>
+      </>
     );
   }
 
   const status = session.statusOf(record);
   const checks = describeChecks(invoice, record);
   const highAccount = record.jevResult?.socialEngineeringRisk.score === "HIGH";
+  const vendor = session.vendors.find((item) => item.id === invoice.vendorId);
+  const requested = invoice.lineItems.find((line) => /cuenta/i.test(line));
   const live = session.live[invoice.id];
   const raw = live?.raw ?? record;
+  const suggestions = highAccount
+    ? ["Revisé los nuevos datos bancarios con el proveedor.", "La cuenta anterior sigue disponible para próximos pagos."]
+    : ["Excepción revisada contra el contrato.", "El monto corresponde al servicio del periodo."];
 
   function act(decision: "APPROVED" | "BLOCKED") {
     if (!note.trim()) {
@@ -43,49 +46,99 @@ export function DetailView({ id }: { id: string }) {
   }
 
   return (
-    <div>
-      <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-xs text-accent no-underline">
-        <ArrowLeft className="h-3.5 w-3.5" /> Facturas
+    <>
+      <Link href="/" className="back">
+        <ArrowLeft className="icon" /> Facturas
       </Link>
-      <div className="mb-6">
-        <h1 className="text-[28px] leading-tight font-semibold tracking-tight">{invoice.vendorName}</h1>
-        <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs text-muted">
+      <div className="detail-heading">
+        <h1>{vendorDisplay(invoice.vendorId, invoice.vendorName)}</h1>
+        <div className="detail-meta">
           <span>{invoice.id}</span>
           <span>{invoice.invoiceNumber}</span>
-          <span>{intakeLabel(invoice)}</span>
-          <StatusBadge status={status} />
+          <span>{originLabel(invoice)}</span>
+          <span className={statusClass(status)}>{statusLabel(status)}</span>
         </div>
       </div>
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,0.95fr)_minmax(340px,1.05fr)]">
-        <section className="rounded-xl border border-[#dce0e8] bg-[#edf0f6] p-5">
-          <div className="mb-4 flex items-center justify-between text-[11px] text-muted">
+      <div className="detail-grid">
+        <section className="evidence">
+          <div className="evidence-title">
             <span>{invoice.documentLabel}</span>
             <span>{invoice.issueDate}</span>
           </div>
-          <SyntheticDocument invoice={invoice} />
-          <dl className="mt-5 grid grid-cols-2 gap-x-4">
-            <Fact label="Subtotal" value={amount(invoice.subtotal, invoice.currency)} />
-            <Fact label="Impuestos" value={amount(invoice.taxAmount, invoice.currency)} />
-            <Fact label="Total original" value={amount(invoice.totalPayable, invoice.currency)} />
-            <Fact label="Total USD" value={usd(record.totalPayableUsd)} />
-          </dl>
-          <p className="mt-3 text-[10px] leading-relaxed text-muted">{invoice.evidenceNote}</p>
+          {invoice.documentKind === "chat" ? (
+            <div className="chat-paper">
+              <div className="chat-header">{vendorDisplay(invoice.vendorId, invoice.vendorName)} · mensaje</div>
+              <div className="chat-bubble">
+                <p>{invoice.description}</p>
+                {invoice.lineItems.map((line) => (
+                  <p key={line}>
+                    <strong>{line}</strong>
+                  </p>
+                ))}
+              </div>
+              <p className="chat-time">{invoice.issueDate}</p>
+            </div>
+          ) : (
+            <article className={`paper${invoice.documentKind === "thermal" ? " ticket" : ""}${invoice.documentKind === "handwritten" ? " handwritten" : ""}`}>
+              <div className="paper-brand">{vendorDisplay(invoice.vendorId, invoice.vendorName)}</div>
+              <div className="paper-title">
+                <strong>{invoice.documentKind === "thermal" ? "Ticket" : invoice.documentKind === "handwritten" ? "Nota" : "Factura"}</strong>
+                <span>{invoice.invoiceNumber}</span>
+              </div>
+              <p>{invoice.description}</p>
+              {invoice.lineItems.map((line) => (
+                <div key={line} className="paper-line">
+                  <span>{line}</span>
+                </div>
+              ))}
+              <div className="paper-total">
+                <span>Total</span>
+                <span>{amount(invoice.totalPayable, invoice.currency)}</span>
+              </div>
+              <p className="paper-stamp">{invoice.evidenceNote}</p>
+            </article>
+          )}
+          <div className="paper-line">
+            <span>Subtotal</span>
+            <span>{amount(invoice.subtotal, invoice.currency)}</span>
+          </div>
+          <div className="paper-line">
+            <span>Impuestos</span>
+            <span>{amount(invoice.taxAmount, invoice.currency)}</span>
+          </div>
+          <div className="paper-line">
+            <span>Total original</span>
+            <span>{amount(invoice.totalPayable, invoice.currency)}</span>
+          </div>
+          <div className="paper-total">
+            <span>Total USD</span>
+            <span>{usd(record.totalPayableUsd)}</span>
+          </div>
+          <p className="budget-note">{invoice.evidenceNote}</p>
         </section>
-        <section className="rounded-xl border border-line bg-surface p-6">
-          <StatusBadge status={status} />
-          <h2 className="mt-4 text-[22px] font-semibold tracking-tight">{status === "APPROVED" ? "Pagado" : status === "ESCALATED" ? "Por revisar" : "Rechazado"}</h2>
-          <p className="mt-2 text-[13px] leading-7 text-muted">{session.explanationOf(invoice, record)}</p>
-          <p className="mt-3 font-mono text-[10px] break-all text-muted">SHA-256 {record.auditHash}</p>
-          <hr className="my-5 border-0 border-t border-line" />
-          <ul className="space-y-1">
+        <section className="decision-panel">
+          <span className={statusClass(status)}>{statusLabel(status)}</span>
+          <h2>{status === "APPROVED" ? "Pagado" : status === "ESCALATED" ? "Por revisar" : "Rechazado"}</h2>
+          <p className="decision-explanation">{session.explanationOf(invoice, record)}</p>
+          <p className="decision-context">SHA-256 {record.auditHash}</p>
+          {highAccount ? (
+            <div className="bank-warning">
+              <h2>Los datos bancarios no coinciden</h2>
+              <p>
+                Registrada: {vendor?.accounts[0] ?? "sin cuenta"}. Solicitada: {requested ?? "el mensaje no nombra una cuenta"}.
+              </p>
+            </div>
+          ) : null}
+          <hr className="divider" />
+          <ul className="checks">
             {checks.map((check) => (
-              <li key={check.id} className="flex gap-2.5 py-2">
-                <span className={`mt-0.5 grid h-[19px] w-[19px] shrink-0 place-items-center rounded-full text-[10px] ${check.pass ? "bg-[#ebf3e6] text-[#4a754c]" : "bg-[#f7ecdb] text-[#956922]"}`}>
-                  {check.pass ? "✓" : "!"}
+              <li key={check.id}>
+                <span className={`check-icon${check.pass ? "" : " fail"}`}>
+                  {check.pass ? <Check className="icon" /> : "!"}
                 </span>
                 <div>
-                  <strong className="block text-[11px] font-medium">{check.label}</strong>
-                  <small className="text-[10px] text-muted">
+                  <strong>{check.label}</strong>
+                  <small>
                     {check.detail}
                     {check.action === "BLOCKED" ? " Consecuencia: rechazar." : ""}
                     {check.action === "ESCALATED" ? " Consecuencia: por revisar." : ""}
@@ -95,70 +148,72 @@ export function DetailView({ id }: { id: string }) {
               </li>
             ))}
           </ul>
-          {live?.timings ? (
-            <ol className="mt-4 space-y-1 text-[11px] text-muted">
-              {live.timings.map((timing) => (
-                <li key={timing.layer} className="flex justify-between gap-3">
-                  <span>
-                    {timing.layer} · {timing.mode}
-                    {timing.model ? ` · ${timing.model}` : ""}
-                  </span>
-                  <span>{timing.ms} ms</span>
-                </li>
-              ))}
-            </ol>
-          ) : null}
           {status === "ESCALATED" ? (
-            <div className="mt-6 border-t border-line pt-5">
-              <p className="text-[11px] text-muted">Añadir contexto ayuda a entender esta decisión cuando se revise más adelante.</p>
-              {highAccount ? (
-                <p className="mt-2 text-[11px] text-muted">Aprobar añade la cuenta solicitada a la ficha del proveedor y conserva la anterior.</p>
-              ) : null}
-              <textarea
-                value={note}
-                onChange={(event) => {
-                  setNote(event.target.value);
-                  setMissingNote(false);
-                }}
-                rows={3}
-                placeholder="Nota para la excepción"
-                className="field mt-3"
-              />
-              {missingNote ? <p className="mt-2 text-[11px] text-danger">La nota es obligatoria.</p> : null}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="primary" type="button" onClick={() => act("APPROVED")}>
-                  {highAccount ? "Aprobar y añadir cuenta" : "Aprobar excepción"}
-                </Button>
-                <Button variant="danger" type="button" onClick={() => act("BLOCKED")}>
+            <div className="actions-box">
+              <p>
+                {highAccount
+                  ? "Aprobar añade la cuenta solicitada a la ficha del proveedor y conserva la anterior."
+                  : "Añadir contexto ayuda a entender esta decisión cuando se revise más adelante."}
+              </p>
+              <div className="suggestions">
+                {suggestions.map((suggestion) => (
+                  <button key={suggestion} className="suggestion" type="button" onClick={() => setNote(suggestion)}>
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+              <label className="field">
+                <span>Nota para la excepción</span>
+                <textarea
+                  rows={3}
+                  value={note}
+                  placeholder="Nota para la excepción"
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                    setMissingNote(false);
+                  }}
+                />
+              </label>
+              {missingNote ? <p className="notice error">La nota es obligatoria.</p> : null}
+              <div className="button-row">
+                <button className="btn primary" type="button" onClick={() => act("APPROVED")}>
+                  {highAccount ? "Aprobar, añadir cuenta y pagar" : "Aprobar excepción"}
+                </button>
+                <button className="btn danger" type="button" onClick={() => act("BLOCKED")}>
                   Rechazar
-                </Button>
-                <Button type="button" onClick={() => void session.notifyOpenClaw(invoice, record)}>
+                </button>
+                <button className="btn" type="button" onClick={() => void session.notifyOpenClaw(invoice, record)}>
                   Avisar por OpenClaw
-                </Button>
+                </button>
               </div>
             </div>
           ) : null}
-          <div className="mt-5">
-            <Button type="button" onClick={() => session.setShowRaw((value) => !value)}>
-              {session.showRaw ? "Ocultar JSON" : "Ver JSON"}
-            </Button>
-            {session.showRaw ? (
-              <pre className="mt-3 max-h-72 overflow-auto rounded-md bg-[#f4f6fc] p-3.5 text-[10px] leading-relaxed text-[#3d4c71]">
-                {JSON.stringify(raw, null, 2)}
-              </pre>
-            ) : null}
-          </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b border-[#dce0e8] py-2.5">
-      <dt className="text-[10px] text-muted">{label}</dt>
-      <dd className="mt-0.5 text-xs font-medium">{value}</dd>
-    </div>
+      <details className="detail-secondary">
+        <summary>Registro, JSON y pipeline</summary>
+        <div className="inner">
+          <p>El hash congela reglas, tasa y veredicto. Re-run solo vuelve a leer si la extracción o la explicación fallan.</p>
+          <button className="btn sm" type="button" disabled={session.running} onClick={() => void session.runLive([invoice.id])}>
+            <RefreshCw className="icon" /> {session.running ? "Ejecutando…" : "Re-run"}
+          </button>
+          {live?.timings ? (
+            <ul className="checks">
+              {live.timings.map((timing) => (
+                <li key={timing.layer}>
+                  <span>
+                    {timing.layer} · {timing.mode}
+                    {timing.model ? ` · ${timing.model}` : ""} · {timing.ms} ms
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Esta fila todavía usa el snapshot. El pipeline en vivo deja aquí los tiempos reales.</p>
+          )}
+          <pre>{JSON.stringify(raw, null, 2)}</pre>
+        </div>
+      </details>
+    </>
   );
 }

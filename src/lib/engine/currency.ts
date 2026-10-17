@@ -25,6 +25,19 @@ const ALIASES: Record<string, string> = {
   "PESO COLOMBIANO": "COP",
   "PESO MEXICANO": "MXN",
   "PESO ARGENTINO": "ARS",
+  "PESO CHILENO": "CLP",
+  BOLIVIANO: "BOB",
+  BOLIVIANOS: "BOB",
+  RAND: "ZAR",
+  RANDS: "ZAR",
+  "COLON COSTARRICENSE": "CRC",
+  COLONES: "CRC",
+  "₡": "CRC",
+  SOLES: "PEN",
+  "NUEVO SOL": "PEN",
+  "SOL PERUANO": "PEN",
+  "S/": "PEN",
+  "S/.": "PEN",
   "BOLIVAR": "VES",
   "BOLÍVAR": "VES",
   BOLIVARES: "VES",
@@ -39,19 +52,41 @@ const ALIASES: Record<string, string> = {
   BSF: "VES",
   "BS.F": "VES",
   "BS.D": "VES",
+  "₿": "BTC",
+  BITCOIN: "BTC",
+  BTC: "BTC",
+  ETHER: "ETH",
+  ETHEREUM: "ETH",
+  ETH: "ETH",
+  TETHER: "USDT",
+  USDT: "USDT",
+  "USD COIN": "USDC",
+  USDC: "USDC",
 };
+
+const CRYPTO = new Set(["BTC", "ETH", "USDT", "USDC"]);
 
 export function isIsoCurrency(code: string): boolean {
   return ISO_4217.has(code);
+}
+
+export function isCryptoCurrency(code: string): boolean {
+  return CRYPTO.has(code);
+}
+
+export function isPayableCurrency(code: string): boolean {
+  return isIsoCurrency(code) || isCryptoCurrency(code);
 }
 
 export function normalizeCurrency(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   const compact = trimmed.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ");
-  const punctuated = compact.replace(/[^A-Z.$€£¥₹]/g, "");
-  const letters = compact.replace(/[^A-Z$€£¥₹]/g, "");
+  const punctuated = compact.replace(/[^A-Z.$€£¥₹₿₡]/g, "");
+  const letters = compact.replace(/[^A-Z$€£¥₹₿₡]/g, "");
   const alias = ALIASES[trimmed] ?? ALIASES[compact] ?? ALIASES[punctuated] ?? ALIASES[letters];
   if (alias) return alias;
-  return ISO_4217.has(letters) ? letters : null;
+  if (/\bUSDC\b/.test(compact) || compact.includes("USD COIN")) return "USDC";
+  if (ISO_4217.has(letters) || CRYPTO.has(letters)) return letters;
+  return null;
 }
