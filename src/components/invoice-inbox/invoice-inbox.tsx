@@ -85,7 +85,9 @@ export function InvoiceInbox({
                 >
                   <td className="px-3 py-3">
                     <p className="font-medium text-[#121826]">{invoice.id}</p>
-                    <p className="text-xs text-[#5c6575]">{ranLive(invoice.id) ? "🔥 Pipeline en vivo" : "⚡ Snapshot 0ms"}</p>
+                    <p className="text-xs text-[#5c6575]">
+                      {!invoice.id.startsWith("INV-") || ranLive(invoice.id) ? "🔥 Pipeline en vivo" : "⚡ Snapshot 0ms"}
+                    </p>
                   </td>
                   <td className="px-3 py-3">
                     <p>{invoice.vendorName}</p>

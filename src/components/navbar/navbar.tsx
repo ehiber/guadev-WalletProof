@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, Flame, KeyRound, MessagesSquare, RotateCcw, Shield } from "lucide-react";
+import { Download, Flame, KeyRound, MessagesSquare, RotateCcw, Shield, Upload } from "lucide-react";
+import { useRef } from "react";
 
 export function Navbar({
   running,
@@ -9,6 +10,7 @@ export function Navbar({
   onOpenClaw,
   onByok,
   onLive,
+  onUpload,
 }: {
   running: boolean;
   onReset: () => void;
@@ -16,7 +18,9 @@ export function Navbar({
   onOpenClaw: () => void;
   onByok: () => void;
   onLive: () => void;
+  onUpload: (file: File) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
   return (
     <header className="sticky top-0 z-20 border-b border-[#e6e8ee] bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-3">
@@ -44,6 +48,27 @@ export function Navbar({
         <button className="btn" onClick={onByok} type="button">
           <KeyRound className="h-4 w-4" />
           API Keys
+        </button>
+        <input
+          ref={fileRef}
+          className="hidden"
+          type="file"
+          accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml,.pdf,.png,.jpg,.jpeg,.webp,.svg"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) onUpload(file);
+          }}
+        />
+        <button
+          className="btn"
+          disabled={running}
+          title="Solo documentos sintéticos"
+          type="button"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Upload className="h-4 w-4" />
+          Subir factura
         </button>
         <button className="btn btn-hot" disabled={running} onClick={onLive} type="button">
           <Flame className="h-4 w-4" />

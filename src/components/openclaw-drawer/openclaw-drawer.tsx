@@ -43,12 +43,38 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
       },
       body: JSON.stringify({ kind, invoiceId, payload }),
     });
+    const body = (await response.json().catch(() => null)) as { error?: string; event?: OpenClawEvent } | null;
     if (!response.ok) {
-      setError("El webhook rechazó el evento.");
-      return;
+      setError(body?.error ?? "El webhook rechazó el evento.");
     }
-    const body = (await response.json()) as { event: OpenClawEvent };
-    setEvents((current) => [...current, body.event].slice(-50));
+    const listed = await fetch("/api/webhooks/openclaw", {
+      headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
+    });
+    if (listed.ok) {
+      const log = (await listed.json()) as { events: OpenClawEvent[] };
+      setEvents(log.events);
+    }
+  }
+
+  async function sendEmail() {
+    const response = await fetch("/api/inbound/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        from: "billing@cloudnova.example",
+        subject: "Factura sintética CN-2026-1099",
+        text: "CloudNova Infrastructure LLC. Número CN-2026-1099. Fecha 2026-10-16. Subtotal 300 USD. Impuesto 0. Total 300 USD. Descripción: almacenamiento adicional de octubre 2026.",
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    if (!response.ok) setError(body?.error ?? "El correo no entró.");
+    const listed = await fetch("/api/webhooks/openclaw", {
+      headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
+    });
+    if (listed.ok) {
+      const log = (await listed.json()) as { events: OpenClawEvent[] };
+      setEvents(log.events);
+    }
   }
 
   return (
@@ -62,18 +88,21 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
           Cerrar
         </button>
       </div>
-      <div className="flex gap-2 border-b border-[#e6e8ee] p-3">
+      <div className="flex flex-wrap gap-2 border-b border-[#e6e8ee] p-3">
         <button
           className="btn"
           onClick={() =>
-            void send("ingest", "INV-07", {
+            void send("ingest", "", {
               channel: "whatsapp",
-              text: "Pago urgente de 450 USD a la cuenta nueva ••••3310",
+              text: "AndesSoft Devs LLC. Factura CHAT-URG-450. Fecha 2026-10-16. Subtotal 450 USD, impuesto 0, total 450 USD. Pago urgente a la cuenta nueva ••••3310, distinta de la contratada.",
             })
           }
           type="button"
         >
           Simular factura
+        </button>
+        <button className="btn" onClick={() => void sendEmail()} type="button">
+          Simular correo
         </button>
         <button
           className="btn"
@@ -94,7 +123,7 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
         {events.map((event) => (
           <article key={event.id} className="rounded-lg bg-[#f4f6f8] p-3 text-sm">
             <p className="font-medium text-[#121826]">
-              {event.kind} · {event.invoiceId ?? "sin factura"}
+              {event.kind} · {event.invoiceId || "sin factura"}
             </p>
             <p className="text-xs text-[#5c6575]">{event.at}</p>
             <pre className="mt-2 overflow-auto text-[11px] leading-5">{JSON.stringify(event.payload, null, 2)}</pre>

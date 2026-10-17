@@ -3,6 +3,9 @@ import type { AuditRecord, CompanyRules, Invoice, JevResult, PriorDocument } fro
 
 function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string {
   const usd = record.totalPayableUsd.toFixed(2);
+  if (record.hardRulesResult.extractionValid === false) {
+    return `Bloqueado. ${record.hardRulesResult.reasons[0] ?? "Faltan campos obligatorios."}`;
+  }
   if (record.finalStatus === "APPROVED") {
     return `Aprobado en automático. El total equivalente es ${usd} USD, el proveedor está autorizado y las reglas duras y JEV coinciden.`;
   }
@@ -11,6 +14,9 @@ function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string
   }
   if (record.jevResult?.socialEngineeringRisk.score === "HIGH") {
     return `Bloqueado por JEV. El mensaje tiene riesgo alto de manipulación o cambio de cuenta. Total equivalente: ${usd} USD.`;
+  }
+  if (record.hardRulesResult.passed && !record.jevResult) {
+    return `Escalado a una persona. JEV no se consultó. Total equivalente: ${usd} USD.`;
   }
   return `Escalado a una persona. JEV no confirma coherencia, unicidad y riesgo bajo al umbral vigente. Total equivalente: ${usd} USD.`;
 }

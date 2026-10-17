@@ -1,4 +1,4 @@
-import { completeWithRetry, groqClient, type ByokKeys } from "@/lib/engine/model-provider";
+import { completeWithRetry, type ByokKeys } from "@/lib/engine/model-provider";
 import type { AuditRecord } from "@/types/blinka";
 
 export interface ExplanationRun {
@@ -11,12 +11,12 @@ export interface ExplanationRun {
 }
 
 export async function explainDecision(record: AuditRecord, keys: ByokKeys): Promise<ExplanationRun> {
-  if (!keys.groq) {
+  if (!keys.explain?.apiKey) {
     return {
       text: record.explanation,
       mode: "fallback",
       escalated: false,
-      raw: { reason: "Sin GROQ_API_KEY. Se usa el texto determinista." },
+      raw: { reason: "Sin clave en la capa de redacción. Se usa el texto determinista." },
     };
   }
 
@@ -33,12 +33,7 @@ export async function explainDecision(record: AuditRecord, keys: ByokKeys): Prom
   };
 
   try {
-    const result = await completeWithRetry(
-      groqClient(keys.groq, "llama-3.1-8b-instant"),
-      groqClient(keys.groq, "llama-3.3-70b-versatile"),
-      input,
-      (text) => text.trim().length >= 20,
-    );
+    const result = await completeWithRetry(keys.explain, input, (text) => text.trim().length >= 20);
     const text = result.text.trim();
     if (text.length < 20) {
       return {
@@ -55,8 +50,8 @@ export async function explainDecision(record: AuditRecord, keys: ByokKeys): Prom
       text: record.explanation,
       mode: "fallback",
       escalated: false,
-      raw: { reason: error instanceof Error ? error.message : "Fallo de Groq" },
-      error: error instanceof Error ? error.message : "Fallo de Groq",
+      raw: { reason: error instanceof Error ? error.message : "Fallo de redacción" },
+      error: error instanceof Error ? error.message : "Fallo de redacción",
     };
   }
 }

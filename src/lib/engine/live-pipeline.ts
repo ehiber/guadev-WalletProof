@@ -2,7 +2,7 @@ import { extractInvoice } from "@/lib/engine/1-extractor";
 import { evaluateHardRules } from "@/lib/engine/2-hard-rules";
 import { evaluateJev } from "@/lib/engine/3-jev-client";
 import { explainDecision } from "@/lib/engine/4-explainer";
-import type { ByokKeys } from "@/lib/engine/model-provider";
+import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import type { AuditRecord, CompanyRules, Invoice, PriorDocument } from "@/types/blinka";
@@ -27,27 +27,24 @@ export interface LiveInvoiceResult {
   explanation: { text: string; mode: "live" | "fallback" };
 }
 
-function keysFromEnv(override: ByokKeys): ByokKeys {
-  return {
-    gemini: override.gemini || process.env.GEMINI_API_KEY || undefined,
-    groq: override.groq || process.env.GROQ_API_KEY || undefined,
-    jev: override.jev || process.env.TYPESAFE_JEV_KEY || undefined,
-  };
+function alreadyRead(invoice: Invoice): boolean {
+  return !invoice.id.startsWith("INV-");
 }
 
 export async function runLiveInvoices(
   ids: string[],
   rules: CompanyRules,
   override: ByokKeys,
+  source?: Invoice[],
 ): Promise<{ results: LiveInvoiceResult[]; records: AuditRecord[]; invoices: Invoice[] }> {
-  const keys = keysFromEnv(override);
+  const keys = resolveKeys(override);
   const wanted = new Set(ids);
-  const invoices = INITIAL_DATASET.map((invoice) => ({ ...invoice }));
+  const invoices = (source ?? INITIAL_DATASET).map((invoice) => ({ ...invoice }));
   const prepared = new Map<string, Awaited<ReturnType<typeof extractInvoice>>>();
   const extractMs = new Map<string, number>();
 
   for (const invoice of invoices) {
-    if (!wanted.has(invoice.id)) continue;
+    if (!wanted.has(invoice.id) || alreadyRead(invoice)) continue;
     const started = performance.now();
     prepared.set(invoice.id, await extractInvoice(invoice, keys));
     extractMs.set(invoice.id, Math.max(1, Math.round(performance.now() - started)));
@@ -78,20 +75,20 @@ export async function runLiveInvoices(
       const recent = invoices.filter((item) => item.vendorId === invoice.vendorId && item.id !== invoice.id);
       const jevStarted = performance.now();
       const jev = await evaluateJev(invoice, recent, keys);
-      invoice.jevSnapshot = jev.result;
+      if (jev.result && (jev.mode === "live" || !invoice.jevSnapshot)) invoice.jevSnapshot = jev.result;
       jevRaw = jev.raw;
       jevTiming = {
         layer: "jev",
-        ms: jev.mode === "live" ? jev.result.latencyMs : Math.round(performance.now() - jevStarted),
+        ms: jev.mode === "live" && jev.result ? jev.result.latencyMs : Math.round(performance.now() - jevStarted),
         mode: jev.mode,
-        detail: jev.error ?? (jev.mode === "live" ? "JEV en vivo." : "Snapshot JEV."),
+        detail: jev.error ?? (jev.result ? (jev.mode === "live" ? "JEV en vivo." : "Snapshot JEV.") : "JEV no se consultó."),
       };
     } else if (hard.passed) {
       jevTiming = {
         layer: "jev",
-        ms: invoice.jevSnapshot.latencyMs,
+        ms: invoice.jevSnapshot?.latencyMs ?? 0,
         mode: "fallback",
-        detail: "Snapshot JEV del dataset.",
+        detail: invoice.jevSnapshot ? "Snapshot JEV del dataset." : "JEV no se consultó.",
       };
     }
 
@@ -117,9 +114,11 @@ export async function runLiveInvoices(
         {
           layer: "extract",
           ms: extractMs.get(original.id) ?? 1,
-          mode: extracted?.mode ?? "fallback",
+          mode: alreadyRead(original) ? "skipped" : extracted?.mode ?? "fallback",
           model: extracted?.model,
-          detail: extracted?.error ?? (extracted?.mode === "live" ? "Extracción Zod válida." : "Snapshot de extracción."),
+          detail: alreadyRead(original)
+            ? "Extracción ya hecha."
+            : extracted?.error ?? (extracted?.mode === "live" ? "Extracción Zod válida." : "Snapshot de extracción."),
         },
         { layer: "rules", ms: rulesMs, mode: "local", detail: record.finalStatus },
         jevTiming,
@@ -128,7 +127,7 @@ export async function runLiveInvoices(
           ms: Math.max(1, Math.round(performance.now() - explainStarted)),
           mode: explanation.mode,
           model: explanation.model,
-          detail: explanation.error ?? (explanation.mode === "live" ? "Explicación Groq." : "Texto determinista."),
+          detail: explanation.error ?? (explanation.mode === "live" ? "Explicación del modelo." : "Texto determinista."),
         },
       ],
       raw: {

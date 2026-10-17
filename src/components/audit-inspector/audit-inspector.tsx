@@ -110,7 +110,10 @@ function CheckList({ record }: { record: AuditRecord }) {
   );
 }
 
-function JevBars({ jev, consulted }: { jev: JevResult; consulted: boolean }) {
+function JevBars({ jev, consulted }: { jev: JevResult | null; consulted: boolean }) {
+  if (!jev) {
+    return <p className="text-sm text-[#5c6575]">JEV no se consultó.</p>;
+  }
   return (
     <div className="space-y-2 text-sm">
       <p className="text-xs uppercase tracking-wide text-[#5c6575]">

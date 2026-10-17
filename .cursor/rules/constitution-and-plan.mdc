@@ -33,7 +33,7 @@ Si varias reglas fallan, `BLOCKED` (duplicado exacto o presupuesto) gana a `ESCA
 
 1. **Motor.** Next.js (App Router, TS, Tailwind). Tipos, `FX_LEDGER`, reglas, dataset, `2-hard-rules.ts`, `pipeline.ts`, `verify:engine` en verde.
 2. **UI snapshot.** Dashboard 0ms, sliders what-if, inspector partido. Sin APIs.
-3. **IA en vivo.** Vision, JEV y Groq detrás de `🔥 Re-Run Live AI`, con fallback y router barato-primero. Generador en `/dev/invoice-generator`.
+3. **IA en vivo.** Vision con OpenAI, JEV y la redacción también con OpenAI detrás de `🔥 Re-Run Live AI`, con fallback de modelo. Generador en `/dev/invoice-generator`.
 4. **Cierre.** CSV, modal BYOK, bitácora `globalThis.openclawEvents` y skills de OpenClaw.
 
 Sin Supabase. El estado del sandbox vive en memoria.

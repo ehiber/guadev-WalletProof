@@ -1,64 +1,35 @@
+import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
 import { runLiveInvoices } from "@/lib/engine/live-pipeline";
-import type { ByokKeys } from "@/lib/engine/model-provider";
-import type { CompanyRules } from "@/types/blinka";
+import { normalizeKeys } from "@/lib/engine/model-provider";
+import { parseInvoices, parseRules } from "@/lib/engine/schemas";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  ids: z.array(z.string().min(1)).min(1).max(8),
-  rules: z.object({
-    maxAutoApproveUsd: z.number().positive(),
-    monthlyBudgetUsd: z.number().positive(),
-    jevConfidenceThreshold: z.number().min(0.5).max(0.99),
-    semanticDuplicateMinProbability: z.number().min(0).max(1),
-  }),
-  keys: z
-    .object({
-      gemini: z.string().optional(),
-      groq: z.string().optional(),
-      jev: z.string().optional(),
-    })
-    .optional(),
+  ids: z.array(z.string().min(1)).min(1).max(24),
+  rules: z.unknown(),
+  keys: z.unknown().optional(),
+  invoices: z.unknown().optional(),
 });
 
-type Bucket = { count: number; resetAt: number };
-
-function buckets(): Map<string, Bucket> {
-  const root = globalThis as typeof globalThis & { evaluateBuckets?: Map<string, Bucket> };
-  root.evaluateBuckets ??= new Map();
-  return root.evaluateBuckets;
-}
-
-function allow(ip: string): boolean {
-  const now = Date.now();
-  const table = buckets();
-  const current = table.get(ip);
-  if (!current || current.resetAt < now) {
-    table.set(ip, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  if (current.count >= 30) return false;
-  current.count += 1;
-  return true;
-}
-
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (!allow(ip)) {
-    return Response.json({ error: "Demasiadas ejecuciones. Espera un minuto." }, { status: 429 });
-  }
-
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: "El cuerpo no trae ids y reglas válidas." }, { status: 400 });
   }
+  const rules = parseRules(parsed.data.rules);
+  if (!rules) {
+    return Response.json({ error: "El cuerpo no trae ids y reglas válidas." }, { status: 400 });
+  }
+  const invoices = parsed.data.invoices === undefined ? undefined : parseInvoices(parsed.data.invoices);
+  if (parsed.data.invoices !== undefined && !invoices) {
+    return Response.json({ error: "La lista de facturas no es válida." }, { status: 400 });
+  }
+  const limited = takeLiveSlot(clientIp(request));
+  if (limited) {
+    return Response.json({ error: limited }, { status: 429 });
+  }
 
-  const keys: ByokKeys = {
-    gemini: parsed.data.keys?.gemini,
-    groq: parsed.data.keys?.groq,
-    jev: parsed.data.keys?.jev,
-  };
-  const rules: CompanyRules = parsed.data.rules;
-  const outcome = await runLiveInvoices(parsed.data.ids, rules, keys);
+  const outcome = await runLiveInvoices(parsed.data.ids, rules, normalizeKeys(parsed.data.keys), invoices ?? undefined);
 
   return Response.json({
     invoices: outcome.invoices,

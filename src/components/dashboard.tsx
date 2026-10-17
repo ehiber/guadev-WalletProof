@@ -8,14 +8,14 @@ import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
 import { RuleBuilder } from "@/components/rule-builder/rule-builder";
 import { evaluateBatch } from "@/lib/engine/pipeline";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
-import type { ByokKeys } from "@/lib/engine/model-provider";
+import { emptyLayer, normalizeKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { usd } from "@/lib/format";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { DEFAULT_RULES } from "@/lib/mock-data/company-rules";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import type { AuditRecord, CompanyRules, DecisionStatus, Invoice } from "@/types/blinka";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 const KEYS_STORAGE = "blinka-byok";
 const KEYS_EVENT = "blinka-byok-change";
@@ -30,11 +30,16 @@ function readStoredKeys() {
 }
 
 function parseKeys(raw: string): ByokKeys {
-  if (!raw) return {};
+  if (!raw) return { read: emptyLayer(), explain: emptyLayer() };
   try {
-    return JSON.parse(raw) as ByokKeys;
+    const parsed = normalizeKeys(JSON.parse(raw));
+    return {
+      read: parsed.read ?? emptyLayer(),
+      explain: parsed.explain ?? emptyLayer(),
+      jev: parsed.jev,
+    };
   } catch {
-    return {};
+    return { read: emptyLayer(), explain: emptyLayer() };
   }
 }
 
@@ -43,6 +48,15 @@ type LiveMeta = {
   timings: LayerTiming[];
   raw: unknown;
   explanation: { text: string; mode: "live" | "fallback" };
+};
+type ArrivalBody = {
+  arrived?: Array<{
+    invoice: Invoice;
+    timings: LayerTiming[];
+    raw: unknown;
+    explanation: LiveMeta["explanation"];
+  }>;
+  human?: Record<string, HumanDecision>;
 };
 
 export function Dashboard() {
@@ -60,8 +74,15 @@ export function Dashboard() {
   const storedKeys = useSyncExternalStore(subscribeKeys, readStoredKeys, () => "");
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
 
+  const previewUrls = useRef<string[]>([]);
+  const seenArrivals = useRef(new Set<string>());
+  const pullGeneration = useRef(0);
   const records = useMemo(() => evaluateBatch(invoices, rules), [invoices, rules]);
-  const statusOf = (record: AuditRecord): DecisionStatus => human[record.invoiceId]?.decision ?? record.finalStatus;
+  const statusOf = (record: AuditRecord): DecisionStatus => {
+    const note = human[record.invoiceId];
+    if (note && record.finalStatus === "ESCALATED") return note.decision;
+    return record.finalStatus;
+  };
   const autonomous = records.filter((record) => record.finalStatus === "APPROVED" && !human[record.invoiceId]);
   const improper = records.filter((record) => record.finalStatus === "APPROVED" && !record.hardRulesResult.passed);
   const consulted = records.filter((record) => record.jevResult);
@@ -74,12 +95,61 @@ export function Dashboard() {
   const selectedInvoice = invoices.find((invoice) => invoice.id === selectedId) ?? invoices[0];
   const selectedRecord = records.find((record) => record.invoiceId === selectedInvoice?.id);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function pull() {
+      const generation = pullGeneration.current;
+      const response = await fetch("/api/invoices");
+      if (!response.ok || cancelled || generation !== pullGeneration.current) return;
+      const body = (await response.json()) as ArrivalBody;
+      if (cancelled || generation !== pullGeneration.current) return;
+      const arrivals = body.arrived ?? [];
+      const extra = arrivals.filter((item) => !seenArrivals.current.has(item.invoice.id));
+      if (extra.length > 0) {
+        for (const item of extra) seenArrivals.current.add(item.invoice.id);
+        setInvoices((current) => {
+          const known = new Set(current.map((invoice) => invoice.id));
+          const fresh = extra.map((item) => item.invoice).filter((invoice) => !known.has(invoice.id));
+          return fresh.length === 0 ? current : [...current, ...fresh];
+        });
+        setSelectedId(extra[extra.length - 1].invoice.id);
+      }
+      setLive((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const arrival of arrivals) {
+          if (next[arrival.invoice.id]) continue;
+          next[arrival.invoice.id] = {
+            timings: arrival.timings,
+            raw: arrival.raw,
+            explanation: arrival.explanation,
+          };
+          changed = true;
+        }
+        return changed ? next : current;
+      });
+      if (body.human) {
+        setHuman((current) => ({ ...current, ...body.human }));
+      }
+    }
+    void pull();
+    const timer = window.setInterval(() => void pull(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   if (!selectedInvoice || !selectedRecord) {
     return <p className="p-6 text-sm">No hay facturas para evaluar.</p>;
   }
   const activeInvoice = selectedInvoice;
   const activeRecord = selectedRecord;
   const selectedLive = live[activeInvoice.id];
+
+  function rememberLive(invoice: Invoice, meta: LiveMeta) {
+    setLive((current) => ({ ...current, [invoice.id]: meta }));
+  }
 
   async function runLive(ids: string[]) {
     setRunning(true);
@@ -88,7 +158,7 @@ export function Dashboard() {
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids, rules, keys }),
+        body: JSON.stringify({ ids, rules, keys, invoices }),
       });
       const body = (await response.json()) as {
         error?: string;
@@ -118,6 +188,10 @@ export function Dashboard() {
   }
 
   function reset() {
+    for (const url of previewUrls.current) URL.revokeObjectURL(url);
+    previewUrls.current = [];
+    seenArrivals.current = new Set();
+    pullGeneration.current += 1;
     setRules(DEFAULT_RULES);
     setInvoices(INITIAL_DATASET);
     setHuman({});
@@ -125,10 +199,57 @@ export function Dashboard() {
     setSelectedId("INV-01");
     setFilter("ALL");
     setLiveError(null);
+    void fetch("/api/invoices", { method: "DELETE" });
     void fetch("/api/webhooks/openclaw", {
       method: "DELETE",
       headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
     });
+  }
+
+  async function upload(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      setLiveError("El archivo supera 4 MB.");
+      return;
+    }
+    setRunning(true);
+    setLiveError(null);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      form.set("rules", JSON.stringify(rules));
+      form.set("keys", JSON.stringify(keys));
+      form.set("invoices", JSON.stringify(invoices));
+      const response = await fetch("/api/invoices", { method: "POST", body: form });
+      const body = (await response.json()) as {
+        error?: string;
+        invoice?: Invoice;
+        timings?: LayerTiming[];
+        raw?: unknown;
+        explanation?: LiveMeta["explanation"];
+      };
+      if (!response.ok || !body.invoice || !body.timings || !body.explanation) {
+        if (String(body.error ?? "").toLowerCase().includes("clave")) setByokOpen(true);
+        throw new Error(body.error ?? "No se pudo leer la factura.");
+      }
+      const preview = URL.createObjectURL(file);
+      previewUrls.current.push(preview);
+      const invoice = { ...body.invoice, documentPath: preview };
+      seenArrivals.current.add(invoice.id);
+      setInvoices((current) => {
+        const index = current.findIndex((item) => item.id === invoice.id);
+        if (index < 0) return [...current, invoice];
+        const next = [...current];
+        next[index] = { ...next[index], documentPath: preview };
+        return next;
+      });
+      setFilter("ALL");
+      setSelectedId(invoice.id);
+      rememberLive(invoice, { timings: body.timings, raw: body.raw, explanation: body.explanation });
+    } catch (error) {
+      setLiveError(error instanceof Error ? error.message : "No se pudo leer la factura.");
+    } finally {
+      setRunning(false);
+    }
   }
 
   function exportCsv() {
@@ -179,6 +300,7 @@ export function Dashboard() {
         onOpenClaw={() => setDrawerOpen(true)}
         onByok={() => setByokOpen(true)}
         onLive={() => void runLive(invoices.map((invoice) => invoice.id))}
+        onUpload={(file) => void upload(file)}
       />
       <main className="mx-auto grid max-w-[1440px] gap-4 px-4 py-4">
         <RuleBuilder
@@ -192,6 +314,11 @@ export function Dashboard() {
           onChange={(next) => {
             setRules(next);
             setHuman({});
+            void fetch("/api/session/rules", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(next),
+            });
           }}
         />
         <section className="grid gap-3 sm:grid-cols-4">

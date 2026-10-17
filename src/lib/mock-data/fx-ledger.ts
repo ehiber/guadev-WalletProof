@@ -1,10 +1,10 @@
-import type { Currency, FxRate } from "@/types/blinka";
+import type { FxRate } from "@/types/blinka";
 
 export const DEMO_ISSUE_DATE = "2026-10-16";
 
 const SOURCE = "Libro sintético Blinka Guard — tasa fija de demo";
 
-export const FX_LEDGER: Record<string, Partial<Record<Currency, FxRate>>> = {
+export const FX_LEDGER: Record<string, Partial<Record<string, FxRate>>> = {
   [DEMO_ISSUE_DATE]: {
     USD: { date: DEMO_ISSUE_DATE, currency: "USD", rateToUsd: 1, source: "USD identity" },
     COP: { date: DEMO_ISSUE_DATE, currency: "COP", rateToUsd: 4200, source: SOURCE },
@@ -14,7 +14,7 @@ export const FX_LEDGER: Record<string, Partial<Record<Currency, FxRate>>> = {
   },
 };
 
-export function lookupFx(issueDate: string, currency: Currency): FxRate | null {
+export function lookupFx(issueDate: string, currency: string): FxRate | null {
   return FX_LEDGER[issueDate]?.[currency] ?? null;
 }
 

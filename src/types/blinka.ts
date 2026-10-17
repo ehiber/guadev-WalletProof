@@ -1,6 +1,6 @@
 export type DecisionStatus = "APPROVED" | "ESCALATED" | "BLOCKED";
 
-export type Currency = "USD" | "COP" | "MXN" | "VES" | "ARS";
+export type Currency = string;
 
 export type AnomalyScore = "LOW" | "MEDIUM" | "HIGH";
 
@@ -70,11 +70,16 @@ export interface Invoice {
   periodKey: string;
   lineItems: string[];
   evidenceNote: string;
-  jevSnapshot: JevResult;
+  extractionValid?: boolean;
+  extractionNote?: string;
+  lineCheck?: string;
+  jevSnapshot: JevResult | null;
 }
 
 export interface HardRulesResult {
   passed: boolean;
+  extractionValid?: boolean;
+  lineCheck?: boolean;
   isExactDuplicate: boolean;
   isVendorWhitelisted: boolean;
   fxValid: boolean;

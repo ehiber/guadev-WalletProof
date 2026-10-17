@@ -21,6 +21,31 @@ export function evaluateHardRules(
   priors: PriorDocument[],
   currentPeriodSpentUsd: number,
 ): { hard: HardRulesResult; fxSnapshot: FxRate | null } {
+  if (invoice.extractionValid === false) {
+    const isExactDuplicate = priors.some(
+      (prior) =>
+        (prior.invoiceNumber === invoice.invoiceNumber && prior.vendorId === invoice.vendorId) ||
+        prior.documentHash === invoice.documentHash,
+    );
+    const reasons = [invoice.extractionNote?.trim() || "Faltan campos obligatorios."];
+    if (isExactDuplicate) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
+    return {
+      fxSnapshot: null,
+      hard: {
+        passed: false,
+        extractionValid: false,
+        isExactDuplicate,
+        isVendorWhitelisted: false,
+        fxValid: false,
+        isWithinSingleLimit: false,
+        isWithinPeriodBudget: true,
+        totalPayableUsd: 0,
+        currentPeriodSpentUsd,
+        reasons,
+      },
+    };
+  }
+
   const fxSnapshot = lookupFx(invoice.issueDate, invoice.currency);
   const fxValid = fxSnapshot !== null && fxSnapshot.rateToUsd > 0;
   const totalPayableUsd = fxValid ? toUsd(invoice.totalPayable, fxSnapshot.rateToUsd) : 0;
@@ -35,19 +60,21 @@ export function evaluateHardRules(
     Number((currentPeriodSpentUsd + totalPayableUsd).toFixed(2)) <= rules.monthlyBudgetUsd;
   const reasons: string[] = [];
 
-  if (!fxValid) reasons.push("No hay tasa FX auditada para la fecha y la moneda.");
+  if (!fxValid) reasons.push(`No hay tasa FX auditada para ${invoice.currency} el ${invoice.issueDate}.`);
+  if (invoice.lineCheck) reasons.push(invoice.lineCheck);
   if (isExactDuplicate) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
   if (!isVendorWhitelisted) reasons.push("El proveedor no está activo en la whitelist.");
   if (!isWithinSingleLimit) reasons.push("El total a pagar en USD supera el límite automático.");
   if (!isWithinPeriodBudget) reasons.push("El total no cabe en el presupuesto restante del periodo.");
 
   const passed =
-    fxValid && !isExactDuplicate && isVendorWhitelisted && isWithinSingleLimit && isWithinPeriodBudget;
+    fxValid && !isExactDuplicate && isVendorWhitelisted && isWithinSingleLimit && isWithinPeriodBudget && !invoice.lineCheck;
 
   return {
     fxSnapshot,
     hard: {
       passed,
+      ...(invoice.lineCheck ? { lineCheck: true } : {}),
       isExactDuplicate,
       isVendorWhitelisted,
       fxValid,
@@ -61,8 +88,8 @@ export function evaluateHardRules(
 }
 
 export function decideStatus(hard: HardRulesResult, jev: JevResult | null, rules: CompanyRules): DecisionStatus {
-  if (hard.isExactDuplicate || !hard.fxValid || !hard.isWithinPeriodBudget) return "BLOCKED";
-  if (!hard.isVendorWhitelisted || !hard.isWithinSingleLimit) return "ESCALATED";
+  if (hard.extractionValid === false || hard.isExactDuplicate || !hard.fxValid || !hard.isWithinPeriodBudget) return "BLOCKED";
+  if (hard.lineCheck || !hard.isVendorWhitelisted || !hard.isWithinSingleLimit) return "ESCALATED";
   if (!jev) return "ESCALATED";
   if (jev.socialEngineeringRisk.score === "HIGH") return "BLOCKED";
 

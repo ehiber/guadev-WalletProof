@@ -17,7 +17,7 @@ Separamos la percepción visual, la validación matemática, el juicio semántic
 1. **Capa 1 — Extracción Multimodal Estricta (Vision LLM + Zod):** Lee PDFs, fotos de tickets arrugados, notas a mano o chats y extrae un JSON tipado separando explícitamente `subtotal`, `taxAmount` y `totalPayable`.
 2. **Capa 2 — Motor Determinista + FX Ledger (TypeScript Puro):** Ejecuta validaciones matemáticas exactas sobre `totalPayable`, convierte divisas latinoamericanas a USD usando la tasa oficial auditada del día (`FX_LEDGER`), valida la *Whitelist* de proveedores, verifica duplicados exactos (hash/referencia) y controla el saldo del presupuesto mensual. **Garantiza 0% de pagos indebidos.**
 3. **Capa 3 — Guardrail Cognitivo Rápido (JEV de TypeSafe AI - System 1):** En ~110ms y por fracciones de centavo ($0.00004 USD), evalúa en una sola pasada (*Single-Pass*) las trampas contextuales que el código rígido no ve: coherencia semántica entre lo cobrado y el contrato del proveedor (`Noul`), duplicados semánticos (`Noul`), nivel de anomalía/ingeniería social en el mensaje (`Score`) y categorización de centro de costo (`Choice`).
-4. **Capa 4 — Explicabilidad Auditable e Inmutable (Groq LLM + SHA-256 Audit Hash):** Redacta la justificación ejecutiva en lenguaje natural para el equipo de finanzas sin necesidad de abrir el código, firma el registro con un hash inmutable de las reglas vigentes, notifica vía **OpenClaw** y permite exportar la conciliación contable en `.CSV`.
+4. **Capa 4 — Explicabilidad Auditable e Inmutable (OpenAI + SHA-256 Audit Hash):** Redacta la justificación ejecutiva en lenguaje natural para el equipo de finanzas sin necesidad de abrir el código, firma el registro con un hash inmutable de las reglas vigentes, notifica vía **OpenClaw** y permite exportar la conciliación contable en `.CSV`.
 
 ---
 
@@ -25,10 +25,10 @@ Separamos la percepción visual, la validación matemática, el juicio semántic
 
 | Capa del Pipeline | Rol Específico | Modelo / Tecnología | Latencia Objetivo |
 | :--- | :--- | :--- | :--- |
-| **Capa 1: Ingesta & OCR** | Extracción estructurada desde PDF/Imagen a JSON validado con `Zod`. | `gemini-2.5-flash` o `gpt-4o-mini` (Soporte multimodal nativo de baja latencia). | 800ms – 1.4s |
+| **Capa 1: Ingesta & OCR** | Extracción estructurada desde PDF/Imagen a JSON validado con `Zod`. | `gpt-5-nano`; si Zod falla, `gpt-6-luna`. | 800ms – 1.4s |
 | **Capa 2: Reglas Duras & FX** | Aritmética sobre `totalPayable`, conversión con tasa histórica del día (`FX_LEDGER`), topes, presupuesto y Whitelist. | **TypeScript Puro (Motor Determinista)**. *Prohibido usar IA para cálculos numéricos o fechas.* | < 5ms |
 | **Capa 3: Guardrail Semántico** | Detección de incoherencia contractual, duplicados semánticos y fraude/urgencia en chats. | **JEV (TypeSafe AI - System 1)** vía Vercel AI Gateway / REST API (`Noul`, `Score`, `Choice`). | 70ms – 200ms |
-| **Capa 4: Explicabilidad** | Generación del registro de auditoría legible por humanos a partir de las salidas de Capa 2 y 3. | `llama-3.3-70b-versatile` vía **Groq API** (con *fallback* determinista instantáneo). | 180ms – 350ms |
+| **Capa 4: Explicabilidad** | Generación del registro de auditoría legible por humanos a partir de las salidas de Capa 2 y 3. | `gpt-5-nano`; si el texto llega vacío, `gpt-6-luna`. Si tampoco hay respuesta, texto determinista. | 180ms – 350ms |
 
 ---
 
@@ -75,11 +75,11 @@ Para evitar fricción en la evaluación (cero pantallas de login) y demostrar co
 1. **Zero-Login Instant Sandbox:** La app abre directamente en el panel financiero de **"NovaLatam Holdings LLC"** (empresa de EE. UU. con operaciones en Colombia, México, Venezuela y Argentina).
 2. **Transparencia Dual (`⚡ Audit Snapshot` vs. `🔥 Live AI Execution`):**
    - Al cargar la página, las 8 facturas del set de prueba se muestran con un badge `⚡ Pre-Computed Snapshot (0ms)` para que el jurado explore la interfaz, los filtros y las explicaciones al instante sin esperar tiempos de carga iniciales.
-   - Cada fila (y la cabecera global) tiene el botón **`🔥 Ejecutar Pipeline IA en Vivo`**, el cual limpia el snapshot y ejecuta en tiempo real las llamadas a **Vision OCR → Motor Determinista → JEV API → Groq**, mostrando un *Live Stepper* con los milisegundos reales de cada capa y una pestaña **`{ } Raw Telemetry & Payloads`** con los JSON reales devueltos por los modelos.
+   - Cada fila (y la cabecera global) tiene el botón **`🔥 Ejecutar Pipeline IA en Vivo`**, el cual limpia el snapshot y ejecuta en tiempo real las llamadas a **Vision OCR → Motor Determinista → JEV API → OpenAI**, mostrando un *Live Stepper* con los milisegundos reales de cada capa y una pestaña **`{ } Raw Telemetry & Payloads`** con los JSON reales devueltos por los modelos.
    - Cuando el juez mueve cualquier *slider* del **Rule Builder** o cambia el umbral de JEV, el motor determinista recalcula los estados y KPIs en vivo en `< 5ms`.
 3. **Configuración Opcional BYOK (`⚙️ API Keys`):**
    - El despliegue en producción incluye las API Keys del equipo en variables de entorno protegidas por un *rate-limiter* ligero para que funcione de inmediato.
-   - Adicionalmente, incluye un modal `⚙️ Bring Your Own Key` donde un juez puede pegar su propia `GROQ_API_KEY`, `GEMINI_API_KEY` o `TYPESAFE_JEV_KEY` (almacenadas solo en su navegador) si desea hacer pruebas intensivas.
+   - Adicionalmente, incluye un modal `⚙️ Bring Your Own Key` donde un juez puede pegar su propia clave de OpenAI o `TYPESAFE_JEV_KEY` (almacenadas solo en su navegador) si desea hacer pruebas intensivas.
 4. **Controles de Evaluación Rápida:**
    - **`🔄 Restaurar Estado Inicial`:** Devuelve las reglas, presupuestos y facturas a su estado limpio en 1 clic.
    - **`📥 Exportar Conciliación (.CSV)`:** Descarga la hoja de cálculo conciliada lista para contabilidad con montos originales, tasas FX aplicadas, montos en USD, estado, explicación y `Audit Hash`.
@@ -163,7 +163,7 @@ Al hacer clic en cualquier factura, se abre un panel dividido de alta claridad:
 │   │   ├── dev/
 │   │   │   └── invoice-generator/      # Generador visual de facturas sintéticas sucias/manuscritas
 │   │   └── api/
-│   │       ├── evaluate/               # POST: Ejecuta en vivo Capas 1, 2, 3 (JEV) y 4 (Groq)
+│   │       ├── evaluate/               # POST: Ejecuta en vivo Capas 1, 2, 3 (JEV) y 4 (OpenAI)
 │   │       └── webhooks/
 │   │           └── openclaw/           # POST/GET: Webhook bidireccional con OpenClaw
 │   ├── components/
@@ -177,7 +177,7 @@ Al hacer clic en cualquier factura, se abre un panel dividido de alta claridad:
 │       │   ├── 1-extractor.ts          # Extracción multimodal con esquema Zod (subtotal/tax/total)
 │       │   ├── 2-hard-rules.ts         # Motor determinista puro en TS + Conversión FX + SHA-256 Hash
 │       │   ├── 3-jev-client.ts         # Integración con TypeSafe JEV (Noul, Score, Choice)
-│       │   ├── 4-explainer.ts          # Generador de explicación humana vía Groq + Fallback limpio
+│       │   ├── 4-explainer.ts          # Generador de explicación humana vía OpenAI + Fallback limpio
 │       │   └── pipeline.ts             # Orquestador que une las 4 capas y mide milisegundos por etapa
 │       ├── utils/
 │       │   └── export-csv.ts           # Exportador de conciliación contable a CSV
