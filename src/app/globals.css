@@ -429,38 +429,17 @@ main > .panel {
   border-bottom: 1px solid var(--line);
 }
 
-.cr-fold {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 44px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
 .cr-title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: nowrap;
-  gap: 2px;
   min-width: 0;
 }
 
-.cr-title .cr-fold {
-  flex: 0 1 auto;
-}
-
-.cr-title .cr-icon {
-  flex: none;
-  margin-top: 2px;
+.cr-title strong {
+  display: block;
+  font-size: 16px;
+  white-space: nowrap;
 }
 
 .cr-dialog .field small {
@@ -491,28 +470,10 @@ main > .panel {
   flex-wrap: nowrap;
 }
 
-.cr-fold strong {
-  display: block;
-  font-size: 16px;
-  white-space: nowrap;
-}
-
-.cr-fold small {
+.cr-title small {
   display: block;
   font-size: 11px;
   color: var(--muted);
-}
-
-.cr-fold .icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  color: var(--muted);
-  transition: transform 160ms ease;
-}
-
-.cr-fold .cr-chevron-closed {
-  transform: rotate(-90deg);
 }
 
 .cr-group-head small {
@@ -548,15 +509,14 @@ main > .panel {
 
 .cr-row {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 6px 12px;
+  grid-template-columns: 20px minmax(180px, 1fr) auto;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
-  align-items: start;
+  align-items: center;
 }
 
 .cr-controls {
-  grid-column: 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -568,6 +528,7 @@ main > .panel {
   min-height: 36px;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .cr-row strong {
@@ -797,8 +758,13 @@ main > .panel {
   }
 
   .cr-controls {
+    grid-column: 2 / -1;
     justify-content: flex-start;
     gap: 12px;
+  }
+
+  .cr-row {
+    grid-template-columns: 20px minmax(0, 1fr);
   }
 
   .cr-side {

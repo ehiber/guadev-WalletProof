@@ -7,7 +7,7 @@ import { CRITERION_LABEL, CRITERION_ORDER, criterionOf } from "@/lib/engine/crit
 import { currencyChoices } from "@/lib/engine/currency";
 import { effectiveRules } from "@/lib/mock-data/projects";
 import type { CompanyRules, CriterionAction, CriterionId, Project, ProjectRules } from "@/types/blinka";
-import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -38,10 +38,7 @@ type RuleGroup = {
   criteria: GroupCriterion[];
 };
 
-type DialogState =
-  | { kind: "group"; groupId?: string }
-  | { kind: "criterion"; groupId: string; key?: string }
-  | null;
+type DialogState = { kind: "criterion"; groupId: string; key?: string } | null;
 
 type ConfirmState = {
   title: string;
@@ -132,7 +129,6 @@ export function RulesView() {
   const session = useSession();
   const [scopeId, setScopeId] = useState(GLOBAL);
   const [groups, setGroups] = useState<RuleGroup[]>(() => seedGroups(session.projects));
-  const [openId, setOpenId] = useState<string | null>("company");
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [dialog, setDialog] = useState<DialogState>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -143,20 +139,7 @@ export function RulesView() {
   const visibleKeys = visible.flatMap((group) => group.criteria.map((item) => `${group.id}|${item.key}`));
 
   useEffect(() => {
-    const projectId = scopeId === GLOBAL ? null : scopeId;
-    const inScope = groups.filter((group) =>
-      projectId ? group.scope === "project" && group.projectId === projectId : group.scope === "global",
-    );
-    setOpenId((current) => {
-      if (current && inScope.some((group) => group.id === current)) return current;
-      if (current === null) return null;
-      return inScope[0]?.id ?? null;
-    });
-  }, [groups, scopeId]);
-
-  useEffect(() => {
     setGroups(seedGroups(session.projects));
-    setOpenId("company");
     setPicked(new Set());
     setScopeId(GLOBAL);
     setDialog(null);
@@ -232,34 +215,9 @@ export function RulesView() {
 
   function openAdd(groupId?: string) {
     const target = visible.find((group) => group.id === groupId) ?? visible[0];
-    if (!target) {
-      setDialog({ kind: "group" });
-      return;
-    }
+    if (!target) return;
     setNotice(null);
     setDialog({ kind: "criterion", groupId: target.id });
-  }
-
-  function saveGroup(name: string, groupId?: string) {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    if (groupId) {
-      setGroups((current) => current.map((group) => (group.id === groupId ? { ...group, name: trimmed } : group)));
-    } else {
-      const id = `group-${Date.now()}`;
-      setGroups((current) => [
-        ...current,
-        {
-          id,
-          name: trimmed,
-          scope: project ? "project" : "global",
-          projectId: project?.id ?? null,
-          criteria: [],
-        },
-      ]);
-      setOpenId(id);
-    }
-    setDialog(null);
   }
 
   function itemOf(key: string) {
@@ -307,7 +265,6 @@ export function RulesView() {
     );
     writeCriteria(patches, dest.projectId);
     setScopeId(dest.projectId ?? GLOBAL);
-    setOpenId(dest.id);
     setDialog(null);
     setNotice(null);
   }
@@ -325,23 +282,6 @@ export function RulesView() {
         const builtins = keys.map((key) => itemOf(key)?.builtinId).filter((id): id is CriterionId => Boolean(id));
         writeCriteria(builtins.map((id) => ({ id, enabled: false })));
         removeFromGroups(keys);
-        setConfirm(null);
-      },
-    });
-  }
-
-  function deleteGroup(group: RuleGroup) {
-    setConfirm({
-      title: "Eliminar grupo",
-      message: `Se eliminará «${group.name}» y sus ${group.criteria.length} criterios. Las decisiones anteriores se conservarán.`,
-      onConfirm: () => {
-        writeCriteria(group.criteria.flatMap((item) => (item.builtinId ? [{ id: item.builtinId, enabled: false }] : [])));
-        setGroups((current) => current.filter((item) => item.id !== group.id));
-        setPicked((current) => {
-          const next = new Set(current);
-          for (const item of group.criteria) next.delete(`${group.id}|${item.key}`);
-          return next;
-        });
         setConfirm(null);
       },
     });
@@ -371,9 +311,11 @@ export function RulesView() {
           <h1>Criterios de aceptación</h1>
           <p>Define qué debe cumplir cada factura y qué ocurre si no cumple.</p>
         </div>
-        <Button type="button" variant="primary" onClick={() => openAdd()}>
-          ＋ Añadir criterio
-        </Button>
+        <div className="heading-actions">
+          <Button type="button" variant="primary" onClick={() => openAdd()}>
+            <Plus className="icon" aria-hidden="true" /> Añadir criterio
+          </Button>
+        </div>
       </header>
 
       <section className="panel cr-context">
@@ -397,8 +339,8 @@ export function RulesView() {
           <p>{project ? "Los criterios generales de empresa también se aplican." : "Se aplican a todas las facturas, en todos los proyectos."}</p>
         </div>
         {project ? (
-          <Link className="btn" href={`/proyectos/${project.id}`}>
-            Ver proyecto
+          <Link className="cr-global-link" href="/proyectos">
+            Ver proyectos →
           </Link>
         ) : null}
       </section>
@@ -425,11 +367,8 @@ export function RulesView() {
             <div className="cr-section-head">
               <div>
                 <h2>Grupos de criterios</h2>
-                <p className="cr-note">Organiza los requisitos que se aplican en este contexto.</p>
+                <p className="cr-note">Consulta y configura los requisitos que se aplican en este contexto.</p>
               </div>
-              <Button type="button" onClick={() => setDialog({ kind: "group" })}>
-                ＋ Crear grupo
-              </Button>
             </div>
             {project ? (
               <button type="button" className="cr-global-link" onClick={() => setScopeId(GLOBAL)}>
@@ -454,8 +393,7 @@ export function RulesView() {
 
             {visible.length === 0 ? (
               <div className="cr-empty">
-                <h3>Aún no hay grupos en este contexto</h3>
-                <p>Crea un grupo para organizar los criterios que se añaden a los generales.</p>
+                <h3>No hay criterios disponibles en este contexto</h3>
               </div>
             ) : (
               visible.map((group) => {
@@ -463,35 +401,16 @@ export function RulesView() {
                 const activeCount = states.filter((item) => item.enabled).length;
                 const groupOn = group.criteria.length > 0 && activeCount === group.criteria.length;
                 const mixed = activeCount > 0 && activeCount < group.criteria.length;
-                const open = openId === group.id;
-                const panelId = `grupo-${group.id}`;
                 return (
                   <section key={group.id} className={groupOn || mixed ? "cr-group" : "cr-group cr-group-off"}>
                     <div className="cr-group-head">
                       <div className="cr-title">
-                        <button
-                          type="button"
-                          className="cr-fold"
-                          aria-expanded={open}
-                          aria-controls={panelId}
-                          onClick={() => setOpenId(open ? null : group.id)}
-                        >
-                          <ChevronDown className={open ? "icon" : "icon cr-chevron-closed"} aria-hidden="true" />
-                          <span>
-                            <strong>{group.name}</strong>
-                            <small>
-                              {group.scope === "global" ? "Toda la empresa" : project?.name} · {group.criteria.length} criterios
-                            </small>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn cr-icon"
-                          aria-label={`Editar grupo ${group.name}`}
-                          onClick={() => setDialog({ kind: "group", groupId: group.id })}
-                        >
-                          <Pencil className="icon" aria-hidden="true" />
-                        </button>
+                        <span>
+                          <strong>{group.name}</strong>
+                          <small>
+                            {group.scope === "global" ? "Toda la empresa" : project?.name} · {group.criteria.length} criterios
+                          </small>
+                        </span>
                       </div>
                       <div className="cr-group-tools">
                         <label className="cr-toggle">
@@ -514,20 +433,14 @@ export function RulesView() {
                         </label>
                         <Button
                           type="button"
-                          onClick={() => {
-                            setOpenId(group.id);
-                            openAdd(group.id);
-                          }}
+                          variant="primary"
+                          onClick={() => openAdd(group.id)}
                         >
-                          ＋ Añadir criterio
+                          <Plus className="icon" aria-hidden="true" /> Añadir criterio
                         </Button>
-                        <button type="button" className="btn cr-delete" aria-label={`Eliminar grupo ${group.name}`} onClick={() => deleteGroup(group)}>
-                          Eliminar
-                        </button>
                       </div>
                     </div>
-                    {open ? (
-                      <div id={panelId}>
+                    <div>
                         {group.criteria.length === 0 ? <p className="cr-empty">Este grupo aún no tiene criterios.</p> : null}
                         {group.criteria.map((criterion) => {
                           const state = liveState(criterion);
@@ -591,8 +504,7 @@ export function RulesView() {
                             </article>
                           );
                         })}
-                      </div>
-                    ) : null}
+                    </div>
                   </section>
                 );
               })
@@ -627,15 +539,6 @@ export function RulesView() {
         </aside>
       </div>
 
-      {dialog?.kind === "group" ? (
-        <GroupDialog
-          name={groups.find((group) => group.id === dialog.groupId)?.name ?? ""}
-          title={dialog.groupId ? "Editar grupo" : "Crear grupo"}
-          scopeLabel={project ? project.name : "Toda la empresa"}
-          onCancel={() => setDialog(null)}
-          onSave={(name) => saveGroup(name, dialog.groupId)}
-        />
-      ) : null}
       {dialog?.kind === "criterion" ? (
         <CriterionDialog
           groups={groups}
@@ -808,54 +711,6 @@ function IndeterminateCheckbox({
       checked={checked}
       onChange={(event) => onChange(event.target.checked)}
     />
-  );
-}
-
-function GroupDialog({
-  name,
-  title,
-  scopeLabel,
-  onCancel,
-  onSave,
-}: {
-  name: string;
-  title: string;
-  scopeLabel: string;
-  onCancel: () => void;
-  onSave: (name: string) => void;
-}) {
-  const titleId = useId();
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <form
-        className="modal-card cr-dialog"
-        role="dialog"
-        aria-labelledby={titleId}
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSave(String(new FormData(event.currentTarget).get("name") ?? ""));
-        }}
-      >
-        <h2 id={titleId}>{title}</h2>
-        <RequiredNote />
-        <label className="field">
-          <span>
-            Nombre del grupo
-            <RequiredMark />
-          </span>
-          <input name="name" required maxLength={80} defaultValue={name} placeholder="Ej.: Requisitos de contratación" autoFocus aria-required="true" />
-        </label>
-        <p className="cr-note">Se aplica a {scopeLabel}. Los grupos de empresa se evalúan en todas las facturas. Los del proyecto se suman a los generales.</p>
-        <div className="button-row">
-          <Button type="button" onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Button variant="primary" type="submit">
-            Guardar grupo
-          </Button>
-        </div>
-      </form>
-    </div>
   );
 }
 
