@@ -1,21 +1,24 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { statusClass, statusLabel, vendorInitials } from "@/lib/format";
+import { SelectMenu } from "@/components/ui/select-menu";
+import { Dialog } from "@/components/ui/ui";
+import { currencyChoices } from "@/lib/engine/currency";
+import { amount, statusClass, statusLabel, usd } from "@/lib/format";
 import {
   VENDOR_CATEGORIES,
-  VENDOR_STATUSES,
   approvalAccounts,
   cardFromDraft,
+  costCenterFor,
   maskAccount,
-  vendorStatusClass,
-  vendorStatusLabel,
   type BankAccount,
+  type VendorAgreement,
   type VendorCard,
   type VendorDraft,
+  type VendorNote,
   type VendorStatus,
 } from "@/lib/vendors/directory";
-import { ArrowLeft, Mail, Plus, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronRight, Mail, Plus, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
@@ -42,88 +45,98 @@ function CreateLoader() {
   );
 }
 
+type VendorPeek = { kind: "projects" | "currencies"; vendorId: string } | null;
+
+const EMPTY_VENDOR_FORM = { name: "", taxId: "", country: "", email: "", service: "", currency: "USD" };
+
 export function ProvidersView() {
   const session = useSession();
-  const router = useRouter();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | VendorStatus>("all");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState("all");
+  const [peek, setPeek] = useState<VendorPeek>(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState(EMPTY_VENDOR_FORM);
+  const [nameInvalid, setNameInvalid] = useState(false);
+  const currencyNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const choice of currencyChoices()) names.set(choice.code, choice.name);
+    return names;
+  }, []);
   const visible = useMemo(
     () =>
       session.vendorCards.filter((vendor) => {
-        const matches = filter === "all" || vendor.status === filter;
-        const haystack = `${vendor.name} ${vendor.legal} ${vendor.country}`.toLowerCase();
-        return matches && haystack.includes(query.trim().toLowerCase());
+        const projects = session.projects.filter((project) => project.vendorIds.includes(vendor.id));
+        const onProject = projectId === "all" || projects.some((project) => project.id === projectId);
+        return onProject && vendor.name.toLowerCase().includes(query.trim().toLowerCase());
       }),
-    [filter, query, session.vendorCards],
+    [projectId, query, session.projects, session.vendorCards],
   );
+  const peeked = peek ? session.vendorCards.find((vendor) => vendor.id === peek.vendorId) : undefined;
+  const peekedProjects = peeked ? session.projects.filter((project) => project.vendorIds.includes(peeked.id)) : [];
 
-  async function createVendor() {
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const card = await createFictionalVendor(session.keys);
-      session.saveVendorCard(card);
-      router.push(`/proveedores/${card.id}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo crear el proveedor.";
-      if (message.toLowerCase().includes("clave")) session.setByokOpen(true);
-      setCreateError(message);
-    } finally {
-      setCreating(false);
+  function openAdd() {
+    setForm(EMPTY_VENDOR_FORM);
+    setNameInvalid(false);
+    setAdding(true);
+  }
+
+  function addVendor(event: FormEvent) {
+    event.preventDefault();
+    if (!form.name.trim()) {
+      setNameInvalid(true);
+      return;
     }
+    const name = form.name.trim();
+    session.saveVendorCard({
+      id: `vendor-${crypto.randomUUID().slice(0, 8)}`,
+      name,
+      legal: name,
+      email: form.email.trim(),
+      country: form.country.trim(),
+      taxId: form.taxId.trim() || undefined,
+      service: form.service.trim(),
+      category: "Por confirmar",
+      currencies: [form.currency || "USD"],
+      status: "unregistered",
+      costCenter: "Other",
+      bankAccounts: [],
+      notes: [],
+      demoFilled: false,
+    });
+    setAdding(false);
   }
 
   return (
     <>
       <div className="page-heading">
-        <div>
-          <h1>Proveedores</h1>
-          <p>Acuerdos, monedas y lista autorizada en un solo lugar.</p>
-        </div>
+        <h1>Proveedores</h1>
         <div className="heading-actions">
-          <button className="btn primary" type="button" disabled={creating} onClick={() => void createVendor()}>
-            <Sparkles className="icon" /> {creating ? "Creando…" : "Crear proveedor"}
-          </button>
-          <Link className="btn" href="/proveedores/nuevo">
+          <button className="btn primary" type="button" onClick={openAdd}>
             <Plus className="icon" /> Añadir proveedor
-          </Link>
-          <span className="badge neutral">Lista del sandbox</span>
+          </button>
         </div>
       </div>
-      <div className="notice info">
-        <p>Autorizar un proveedor permite evaluar sus facturas según las reglas. Los duplicados, cambios de cuenta y límites siguen revisándose.</p>
+      <div className="plist-tools">
+        <label className="plist-search">
+          <Search className="icon" />
+          <span className="visually-hidden">Buscar por nombre</span>
+          <input type="search" value={query} placeholder="Buscar por nombre" onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        <SelectMenu
+          label="Proyecto"
+          value={projectId}
+          options={[
+            { value: "all", label: "Todos los proyectos" },
+            ...session.projects.map((project) => ({ value: project.id, label: project.name })),
+          ]}
+          onChange={setProjectId}
+        />
       </div>
-      {creating ? <CreateLoader /> : null}
-      {createError ? (
-        <div className="notice error">
-          <p>{createError}</p>
-        </div>
-      ) : null}
-      <section className="table-card" aria-label="Proveedores">
-        <div className="table-toolbar">
-          <label className="search">
-            <Search className="icon" />
-            <span className="visually-hidden">Buscar proveedor</span>
-            <input type="search" value={query} placeholder="Buscar proveedor" onChange={(event) => setQuery(event.target.value)} />
-          </label>
-          <label className="field" style={{ margin: 0, minWidth: 180 }}>
-            <span className="visually-hidden">Estado</span>
-            <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
-              <option value="all">Todos</option>
-              {VENDOR_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {vendorStatusLabel(status)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      <section className="plist" aria-label="Proveedores">
         {visible.length === 0 ? (
           <div className="empty">
             <h2>No hay proveedores que coincidan</h2>
-            <p>Cambia el estado o la búsqueda.</p>
+            <p>Prueba con otro nombre o con todos los proyectos.</p>
           </div>
         ) : (
           <div className="table-wrap">
@@ -131,42 +144,162 @@ export function ProvidersView() {
               <thead>
                 <tr>
                   <th scope="col">Proveedor</th>
-                  <th scope="col">Estado</th>
+                  <th scope="col">Servicio</th>
                   <th scope="col">Monedas</th>
-                  <th scope="col">Servicio acordado</th>
-                  <th scope="col">Acción</th>
+                  <th scope="col">Proyectos</th>
+                  <th scope="col">
+                    <span className="visually-hidden">Acción</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((vendor) => (
-                  <tr key={vendor.id}>
-                    <td>
-                      <div className="vendor-cell">
-                        <span className="vendor-icon">{vendorInitials(vendor.id, vendor.name)}</span>
-                        <div>
-                          <strong>{vendor.name}</strong>
-                          <small>{vendor.country}</small>
+                {visible.map((vendor) => {
+                  const projects = session.projects.filter((project) => project.vendorIds.includes(vendor.id));
+                  const extraCurrencies = Math.max(0, vendor.currencies.length - 2);
+                  const service = vendor.category === "Por confirmar" && vendor.service ? vendor.service : vendor.category;
+                  return (
+                    <tr key={vendor.id}>
+                      <td>
+                        <strong className="plist-name">{vendor.name}</strong>
+                        {vendor.country ? <small>{vendor.country}</small> : null}
+                      </td>
+                      <td>{service || "Por confirmar"}</td>
+                      <td>
+                        <div className="plist-tags">
+                          <span>{vendor.currencies.slice(0, 2).join(", ") || "—"}</span>
+                          {extraCurrencies > 0 ? (
+                            <button className="plist-more" type="button" onClick={() => setPeek({ kind: "currencies", vendorId: vendor.id })}>
+                              +{extraCurrencies}
+                            </button>
+                          ) : null}
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={vendorStatusClass(vendor.status)}>{vendorStatusLabel(vendor.status)}</span>
-                    </td>
-                    <td>{vendor.currencies.join(", ")}</td>
-                    <td>{vendor.service || "Por registrar"}</td>
-                    <td>
-                      <Link className="btn sm" href={`/proveedores/${vendor.id}`}>
-                        Editar ficha
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {projects.length === 0 ? (
+                          <span className="plist-empty">Sin proyectos asignados</span>
+                        ) : (
+                          <div className="plist-tags">
+                            <span className="plist-tag">{projects[0]?.name}</span>
+                            {projects.length > 1 ? (
+                              <button className="plist-more" type="button" onClick={() => setPeek({ kind: "projects", vendorId: vendor.id })}>
+                                +{projects.length - 1}
+                              </button>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <Link className="btn sm" href={`/proveedores/${vendor.id}`}>
+                          Ver ficha <ChevronRight className="icon" />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </section>
-      <p className="page-footer">Crear proveedor inventa una ficha y una cuenta ficticias. Una cuenta nueva de una factura solo se agrega al aprobar esa excepción.</p>
+      <p className="plist-count">
+        {visible.length} {visible.length === 1 ? "proveedor" : "proveedores"}
+      </p>
+      <Dialog
+        open={Boolean(peeked && peek?.kind === "projects")}
+        title={peeked ? `Proyectos de ${peeked.name}` : "Proyectos"}
+        className="id-modal"
+        onClose={() => setPeek(null)}
+      >
+        <p className="plist-modal-lead">
+          {peekedProjects.length} {peekedProjects.length === 1 ? "proyecto vinculado" : "proyectos vinculados"}
+        </p>
+        <ul className="plist-modal-list">
+          {peekedProjects.map((project) => (
+            <li key={project.id}>
+              <strong>{project.name}</strong>
+            </li>
+          ))}
+        </ul>
+        <div className="button-row">
+          <button className="btn" type="button" onClick={() => setPeek(null)}>
+            Cerrar
+          </button>
+        </div>
+      </Dialog>
+      <Dialog
+        open={Boolean(peeked && peek?.kind === "currencies")}
+        title={peeked ? `Monedas de ${peeked.name}` : "Monedas"}
+        className="id-modal"
+        onClose={() => setPeek(null)}
+      >
+        <p className="plist-modal-lead">
+          {peeked?.currencies.length ?? 0} {(peeked?.currencies.length ?? 0) === 1 ? "moneda admitida" : "monedas admitidas"}
+        </p>
+        <ul className="plist-modal-list">
+          {peeked?.currencies.map((code) => (
+            <li key={code}>
+              <strong>{code}</strong>
+              <span>{currencyNames.get(code) ?? code}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="button-row">
+          <button className="btn" type="button" onClick={() => setPeek(null)}>
+            Cerrar
+          </button>
+        </div>
+      </Dialog>
+      <Dialog open={adding} title="Añadir proveedor" className="id-modal" onClose={() => setAdding(false)}>
+        <form className="plist-form" noValidate onSubmit={addVendor}>
+          <label className={`field${nameInvalid ? " invalid" : ""}`}>
+            <span>Nombre</span>
+            <input
+              value={form.name}
+              onChange={(event) => {
+                setForm({ ...form, name: event.target.value });
+                setNameInvalid(false);
+              }}
+            />
+            {nameInvalid ? <small className="field-error">Escribe el nombre del proveedor.</small> : null}
+          </label>
+          <div className="vendor-pair">
+            <label className="field">
+              <span>Identificación fiscal / legal</span>
+              <input placeholder="RIF, NIF, CIF, EIN..." value={form.taxId} onChange={(event) => setForm({ ...form, taxId: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>País</span>
+              <input value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Correo</span>
+            <input type="text" inputMode="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+          </label>
+          <label className="field">
+            <span>Servicio</span>
+            <input value={form.service} onChange={(event) => setForm({ ...form, service: event.target.value })} />
+          </label>
+          <label className="field">
+            <span>Moneda inicial</span>
+            <SelectMenu
+              label="Moneda inicial"
+              value={form.currency}
+              options={currencyChoices().map((choice) => ({ value: choice.code, label: choice.code }))}
+              onChange={(currency) => setForm({ ...form, currency })}
+            />
+          </label>
+          <p className="plist-note">Se creará sin proyectos asignados. Los datos de esta muestra se conservan mientras la página está abierta.</p>
+          <div className="button-row">
+            <button className="btn" type="button" onClick={() => setAdding(false)}>
+              Cancelar
+            </button>
+            <button className="btn primary" type="submit">
+              Añadir proveedor
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </>
   );
 }
@@ -175,32 +308,123 @@ export function ProviderDetailView({ id }: { id: string }) {
   return <ProviderEditor key={id} id={id} />;
 }
 
+type VendorDraftState = {
+  name: string;
+  email: string;
+  legal: string;
+  country: string;
+  taxId: string;
+  service: string;
+  category: string;
+  currencies: string[];
+  banks: BankAccount[];
+  notes: VendorNote[];
+  projectIds: string[];
+  agreements: VendorAgreement[];
+};
+
+function noteDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+function packDraft(input: {
+  name: string;
+  email: string;
+  legal: string;
+  country: string;
+  taxId: string;
+  service: string;
+  category: string;
+  currencies: string[];
+  banks: BankAccount[];
+  notes: VendorNote[];
+  projectIds: string[];
+  agreements: VendorAgreement[];
+}) {
+  return JSON.stringify({
+    ...input,
+    currencies: [...input.currencies].sort(),
+    projectIds: [...input.projectIds].sort(),
+    agreements: [...input.agreements]
+      .map((item) => ({ ...item, currencies: [...item.currencies].sort() }))
+      .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+  });
+}
+
 export function ProviderEditor({ id }: { id: string }) {
   const session = useSession();
   const router = useRouter();
   const fresh = id === "nuevo";
   const saved = fresh ? undefined : session.vendorCards.find((item) => item.id === id);
-  const [name, setName] = useState(saved?.name ?? "");
-  const [email, setEmail] = useState(saved?.email ?? "");
-  const [legal, setLegal] = useState(saved?.legal ?? "");
-  const [country, setCountry] = useState(saved?.country ?? "");
-  const [service, setService] = useState(saved?.service ?? "");
-  const [category, setCategory] = useState(saved?.category ?? VENDOR_CATEGORIES[0]);
-  const [currencies, setCurrencies] = useState(saved?.currencies.join(", ") ?? "USD");
-  const [status, setStatus] = useState<VendorStatus>(saved?.status ?? "unregistered");
-  const [comment, setComment] = useState("");
-  const [banks, setBanks] = useState<BankAccount[]>(saved?.bankAccounts ?? []);
-  const [notes, setNotes] = useState(saved?.notes ?? []);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const catalog = useMemo(() => currencyChoices(), []);
+  const initialProjects = session.projects
+    .filter((project) => saved && project.vendorIds.includes(saved.id))
+    .map((project) => project.id);
+  const initial: VendorDraftState = {
+    name: saved?.name ?? "",
+    email: saved?.email ?? "",
+    legal: saved?.legal ?? "",
+    country: saved?.country ?? "",
+    taxId: saved?.taxId ?? "",
+    service: saved?.service ?? "",
+    category: saved?.category ?? VENDOR_CATEGORIES[0],
+    currencies: saved?.currencies?.length ? saved.currencies : ["USD"],
+    banks: saved?.bankAccounts ?? [],
+    notes: saved?.notes ?? [],
+    projectIds: initialProjects,
+    agreements: saved?.agreements ?? [],
+  };
+  const [name, setName] = useState(initial.name);
+  const [email, setEmail] = useState(initial.email);
+  const [legal, setLegal] = useState(initial.legal);
+  const [country, setCountry] = useState(initial.country);
+  const [taxId, setTaxId] = useState(initial.taxId);
+  const [service, setService] = useState(initial.service);
+  const [category, setCategory] = useState(initial.category);
+  const [currencies, setCurrencies] = useState(initial.currencies);
+  const [banks, setBanks] = useState<BankAccount[]>(initial.banks);
+  const [notes, setNotes] = useState<VendorNote[]>(initial.notes);
+  const [projectIds, setProjectIds] = useState(initial.projectIds);
+  const [agreements, setAgreements] = useState<VendorAgreement[]>(initial.agreements);
+  const [agreement, setAgreement] = useState<{
+    projectId: string;
+    service: string;
+    limit: string;
+    currencies: string[];
+    invalidLimit: boolean;
+    invalidCurrencies: boolean;
+  } | null>(null);
+  const [savedSnap, setSavedSnap] = useState(() => packDraft(initial));
+  const [currencyQuery, setCurrencyQuery] = useState("");
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
+  const [noteMissing, setNoteMissing] = useState<Record<string, string>>({});
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignPick, setAssignPick] = useState<string[]>([]);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [bankForm, setBankForm] = useState({ bank: "", holder: "", country: "", currency: "USD", identifier: "", type: "" });
+  const [bankMissing, setBankMissing] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [nameInvalid, setNameInvalid] = useState(false);
   const [creating, setCreating] = useState(false);
+  const status: VendorStatus = saved?.status ?? "unregistered";
+
+  const draft = packDraft({ name, email, legal, country, taxId, service, category, currencies, banks, notes, projectIds, agreements });
+  const dirty = draft !== savedSnap;
+  const currencyMatches = catalog
+    .filter((item) => !currencies.includes(item.code))
+    .filter((item) => `${item.code} ${item.name}`.toLowerCase().includes(currencyQuery.trim().toLowerCase()))
+    .slice(0, 8);
 
   if (!fresh && !saved) {
     return (
       <>
         <Link href="/proveedores" className="back">
-          <ArrowLeft className="icon" /> Proveedores
+          <ArrowLeft className="icon" /> Ver proveedores
         </Link>
         <h1>Proveedor no encontrado</h1>
       </>
@@ -211,74 +435,158 @@ export function ProviderEditor({ id }: { id: string }) {
     ? approvalAccounts(saved.id, session.invoices, session.human, session.records)
     : [];
   const invoices = saved ? session.invoices.filter((invoice) => invoice.vendorId === saved.id) : [];
+  const assignedProjects = session.projects.filter((project) => projectIds.includes(project.id));
+  const agreementProject = agreement ? session.projects.find((project) => project.id === agreement.projectId) : undefined;
 
-  function syncHolder(nextName: string) {
-    setName(nextName);
+  function currentDraft(next?: Partial<VendorDraftState>) {
+    return packDraft({ name, email, legal, country, taxId, service, category, currencies, banks, notes, projectIds, agreements, ...next });
+  }
+
+  function restore(origin: VendorDraftState) {
+    setName(origin.name);
+    setEmail(origin.email);
+    setLegal(origin.legal);
+    setCountry(origin.country);
+    setTaxId(origin.taxId);
+    setService(origin.service);
+    setCategory(origin.category);
+    setCurrencies(origin.currencies);
+    setBanks(origin.banks);
+    setNotes(origin.notes);
+    setProjectIds(origin.projectIds);
+    setAgreements(origin.agreements);
+    setNameInvalid(false);
+    setError(null);
   }
 
   function save(event: FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
+      setNameInvalid(true);
       setError("Escribe el nombre del proveedor.");
       return;
     }
-    const parsedCurrencies = currencies
-      .toUpperCase()
-      .split(",")
-      .map((item) => item.trim())
-      .filter((item) => /^[A-Z]{3,5}$/.test(item));
-    const nextCurrencies = parsedCurrencies.length > 0 ? parsedCurrencies : ["USD"];
-    const now = new Date().toISOString();
-    const nextNotes = [
-      ...notes,
-      {
-        id: `note-${crypto.randomUUID()}`,
-        title: fresh ? "Proveedor registrado" : "Ficha actualizada",
-        body: comment.trim() || "Sin comentario adicional.",
-        at: now,
-        actor: "Equipo de finanzas",
-      },
-    ];
+    if (currencies.length === 0) {
+      setError("Añade al menos una moneda.");
+      return;
+    }
     const card: VendorCard = {
       id: saved?.id ?? `vendor-${crypto.randomUUID().slice(0, 8)}`,
       name: trimmed,
       legal: legal.trim() || trimmed,
       email: email.trim(),
       country: country.trim(),
+      taxId: taxId.trim(),
       service: service.trim(),
       category,
-      currencies: nextCurrencies,
+      currencies,
       status,
-      costCenter: saved?.costCenter ?? "Other",
+      costCenter: costCenterFor(category),
       bankAccounts: banks,
-      notes: nextNotes,
-      demoFilled: false,
+      notes,
+      agreements,
+      demoFilled: saved?.demoFilled ?? false,
     };
     session.saveVendorCard(card);
-    router.push(`/proveedores/${card.id}`);
+    session.setVendorProjects(card.id, projectIds);
+    const next = currentDraft({ name: trimmed, legal: card.legal, email: card.email, country: card.country, taxId: card.taxId ?? "", service: card.service });
+    setName(trimmed);
+    setSavedSnap(next);
+    setError(null);
+    setNameInvalid(false);
+    if (fresh) router.push(`/proveedores/${card.id}`);
+  }
+
+  function openAgreement(projectId: string) {
+    const project = session.projects.find((item) => item.id === projectId);
+    const existing = agreements.find((item) => item.projectId === projectId);
+    const cap = existing?.limitUsd ?? project?.rules.maxAutoApproveUsd ?? session.rules.maxAutoApproveUsd;
+    const picked = (existing?.currencies ?? currencies).filter((code) => currencies.includes(code));
+    setAgreement({
+      projectId,
+      service: existing?.service ?? service,
+      limit: String(cap),
+      currencies: picked.length > 0 ? picked : [...currencies],
+      invalidLimit: false,
+      invalidCurrencies: false,
+    });
+  }
+
+  function applyAgreement(event: FormEvent) {
+    event.preventDefault();
+    if (!agreement) return;
+    const limitUsd = Number(agreement.limit.replace(",", "."));
+    const invalidLimit = !Number.isFinite(limitUsd) || limitUsd <= 0;
+    const invalidCurrencies = agreement.currencies.length === 0;
+    if (invalidLimit || invalidCurrencies) {
+      setAgreement({ ...agreement, invalidLimit, invalidCurrencies });
+      return;
+    }
+    setAgreements((current) => [
+      ...current.filter((item) => item.projectId !== agreement.projectId),
+      {
+        projectId: agreement.projectId,
+        service: agreement.service.trim(),
+        limitUsd,
+        currencies: [...agreement.currencies].sort(),
+      },
+    ]);
+    setAgreement(null);
+  }
+
+  function cancel() {
+    if (fresh) {
+      router.push("/proveedores");
+      return;
+    }
+    restore(JSON.parse(savedSnap) as VendorDraftState);
+  }
+
+  function addCurrency(code: string) {
+    setCurrencies((current) => (current.includes(code) ? current : [...current, code]));
+    setCurrencyQuery("");
+    setCurrencyOpen(false);
+    setError(null);
+  }
+
+  function openBank(index: number) {
+    const current = index >= 0 ? banks[index] : undefined;
+    setBankForm({
+      bank: current?.bank ?? "",
+      holder: current?.holder ?? legal,
+      country: current?.country ?? country,
+      currency: current?.currency ?? currencies[0] ?? "USD",
+      identifier: current?.identifier ?? "",
+      type: current?.type ?? "",
+    });
+    setBankMissing({});
+    setEditing(index);
   }
 
   function saveBank(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
     const account: BankAccount = {
       id: editing !== null && editing >= 0 ? (banks[editing]?.id ?? `bank-${crypto.randomUUID()}`) : `bank-${crypto.randomUUID()}`,
-      bank: String(data.get("bank") ?? "").trim(),
-      holder: String(data.get("holder") ?? "").trim(),
-      country: String(data.get("country") ?? "").trim(),
-      currency: String(data.get("currency") ?? "").trim().toUpperCase(),
-      identifier: String(data.get("identifier") ?? "").trim(),
+      bank: bankForm.bank.trim(),
+      holder: bankForm.holder.trim(),
+      country: bankForm.country.trim(),
+      currency: bankForm.currency.trim().toUpperCase(),
+      identifier: bankForm.identifier.trim(),
+      type: bankForm.type.trim() || undefined,
     };
-    if (!account.bank || !account.holder || !account.country || !/^[A-Z]{3,5}$/.test(account.currency) || !account.identifier) {
-      setError("Completa banco, titular, país, una moneda válida y el identificador.");
-      return;
-    }
+    const missing: Record<string, string> = {};
+    if (!account.bank) missing.bank = "Escribe el banco.";
+    if (!account.holder) missing.holder = "Escribe el titular.";
+    if (!account.country) missing.country = "Escribe el país.";
+    if (!/^[A-Z]{3,5}$/.test(account.currency)) missing.currency = "Usa tres letras, por ejemplo USD.";
+    if (!account.identifier) missing.identifier = "Escribe el identificador.";
+    setBankMissing(missing);
+    if (Object.keys(missing).length > 0) return;
     if (banks.some((item, index) => index !== editing && item.identifier === account.identifier)) {
-      setError("Esta cuenta ya está registrada.");
+      setBankMissing({ identifier: "Esta cuenta ya está registrada." });
       return;
     }
-    setError(null);
     setBanks((current) => {
       if (editing === null || editing < 0) return [...current, account];
       return current.map((item, index) => (index === editing ? account : item));
@@ -286,21 +594,27 @@ export function ProviderEditor({ id }: { id: string }) {
     setEditing(null);
   }
 
-  function saveNote(event: FormEvent) {
+  function addNote(event: FormEvent) {
     event.preventDefault();
-    const body = noteBody.trim();
-    if (!body || !saved) return;
-    const note = {
-      id: `note-${crypto.randomUUID()}`,
-      title: "Nota",
-      body,
-      at: new Date().toISOString(),
-      actor: "Equipo de finanzas",
-    };
-    const next = [...notes, note];
-    setNotes(next);
+    const missing: Record<string, string> = {};
+    if (!noteTitle.trim()) missing.title = "Escribe un título.";
+    if (!noteBody.trim()) missing.body = "Escribe el comentario.";
+    setNoteMissing(missing);
+    if (Object.keys(missing).length > 0) return;
+    setNotes((current) => [
+      ...current,
+      {
+        id: `note-${crypto.randomUUID()}`,
+        title: noteTitle.trim(),
+        body: noteBody.trim(),
+        at: new Date().toISOString(),
+        actor: "Equipo de finanzas",
+      },
+    ]);
+    setNoteTitle("");
     setNoteBody("");
-    session.saveVendorCard({ ...saved, notes: next, bankAccounts: banks });
+    setNoteMissing({});
+    setNoteOpen(false);
   }
 
   async function createVendor() {
@@ -322,12 +636,11 @@ export function ProviderEditor({ id }: { id: string }) {
   return (
     <>
       <Link href="/proveedores" className="back">
-        <ArrowLeft className="icon" /> Proveedores
+        <ArrowLeft className="icon" /> Ver proveedores
       </Link>
       <div className="page-heading">
         <div>
           <h1>{fresh ? "Añadir proveedor" : name || saved?.name}</h1>
-          <p>{fresh ? "Completa la ficha a mano o crea un proveedor ficticio." : vendorStatusLabel(status)}</p>
         </div>
         {fresh ? (
           <button className="btn primary" type="button" disabled={creating} onClick={() => void createVendor()}>
@@ -345,173 +658,227 @@ export function ProviderEditor({ id }: { id: string }) {
           <p>{error}</p>
         </div>
       ) : null}
-      <div className="provider-layout">
-        <form className="panel" onSubmit={save}>
+      <div className="vendor-grid">
+        <div>
+        <form id="vendor-form" className="panel" noValidate onSubmit={save}>
           <h2>Datos del proveedor</h2>
-          <div className="form-grid">
-            <label className="field">
+          <div className="vendor-pair">
+            <label className={`field${nameInvalid ? " invalid" : ""}`}>
               <span>Nombre</span>
-              <input required value={name} onChange={(event) => syncHolder(event.target.value)} />
+              <input
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setNameInvalid(false);
+                }}
+              />
+              {nameInvalid ? <small className="field-error">Escribe el nombre del proveedor.</small> : null}
             </label>
             <label className="field">
               <span>Correo</span>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+              <input value={email} inputMode="email" onChange={(event) => setEmail(event.target.value)} />
             </label>
-            <label className="field">
-              <span>Nombre legal</span>
-              <input value={legal} onChange={(event) => setLegal(event.target.value)} />
-            </label>
+          </div>
+          <label className="field">
+            <span>Nombre legal</span>
+            <input value={legal} onChange={(event) => setLegal(event.target.value)} />
+          </label>
+          <div className="vendor-pair">
             <label className="field">
               <span>País</span>
               <input value={country} onChange={(event) => setCountry(event.target.value)} />
             </label>
+            <label className="field">
+              <span>Identificación fiscal / legal</span>
+              <input value={taxId} onChange={(event) => setTaxId(event.target.value)} />
+            </label>
           </div>
           <label className="field">
-            <span>Servicio acordado</span>
-            <textarea value={service} onChange={(event) => setService(event.target.value)} />
+            <span>Servicio habitual</span>
+            <textarea rows={3} value={service} onChange={(event) => setService(event.target.value)} />
           </label>
           <label className="field">
             <span>Categoría</span>
-            <select value={category} onChange={(event) => setCategory(event.target.value)}>
-              {VENDOR_CATEGORIES.map((item) => (
-                <option key={item}>{item}</option>
+            <SelectMenu
+              label="Categoría"
+              value={category}
+              options={VENDOR_CATEGORIES.map((item) => ({ value: item, label: item }))}
+              onChange={setCategory}
+            />
+          </label>
+          <div className="field vendor-suggest">
+            <span>Monedas que acepta</span>
+            <input
+              value={currencyQuery}
+              placeholder="Buscar y añadir moneda"
+              aria-expanded={currencyOpen}
+              aria-controls="currency-menu"
+              onFocus={() => setCurrencyOpen(true)}
+              onBlur={() => setCurrencyOpen(false)}
+              onChange={(event) => {
+                setCurrencyQuery(event.target.value);
+                setCurrencyOpen(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const exact = catalog.find((item) => item.code === currencyQuery.trim().toUpperCase());
+                const pick = exact ?? (currencyMatches.length === 1 ? currencyMatches[0] : undefined);
+                if (pick) addCurrency(pick.code);
+              }}
+            />
+            {currencyOpen ? (
+              <ul id="currency-menu" className="vendor-menu" role="listbox">
+                {currencyMatches.length === 0 ? <li><button type="button">No hay monedas con ese nombre.</button></li> : null}
+                {currencyMatches.map((item) => (
+                  <li key={item.code}>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => addCurrency(item.code)}
+                    >
+                      {item.code} · <small>{item.name}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="vendor-chips">
+              {currencies.map((code) => (
+                <span key={code} className="vendor-chip">
+                  {code}
+                  <button type="button" aria-label={`Quitar ${code}`} onClick={() => setCurrencies((current) => current.filter((item) => item !== code))}>
+                    <X className="icon" />
+                  </button>
+                </span>
               ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Monedas admitidas · separadas por coma</span>
-            <input value={currencies} onChange={(event) => setCurrencies(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Lista autorizada</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as VendorStatus)}>
-              {VENDOR_STATUSES.map((item) => (
-                <option key={item} value={item}>
-                  {vendorStatusLabel(item)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Comentario</span>
-            <textarea value={comment} maxLength={600} onChange={(event) => setComment(event.target.value)} />
-          </label>
-          <button className="btn primary" type="submit">
-            Guardar proveedor
-          </button>
+            </div>
+          </div>
         </form>
+        <section className="panel">
+          <div className="vendor-head">
+            <h2>Notas e historial</h2>
+            <button
+              className="btn vendor-pill"
+              type="button"
+              onClick={() => {
+                setNoteTitle("");
+                setNoteBody("");
+                setNoteMissing({});
+                setNoteOpen(true);
+              }}
+            >
+              <Plus className="icon" /> Añadir nota
+            </button>
+          </div>
+          {notes.length === 0 && approved.length === 0 ? <p className="muted">Las notas de esta ficha aparecerán aquí.</p> : null}
+          {[...notes].reverse().map((note) => (
+            <article key={note.id} className="vendor-note">
+              <strong>
+                {note.invoiceId ? <Link href={`/facturas/${note.invoiceId}`}>{note.title}</Link> : note.title}
+              </strong>
+              <p>{note.body}</p>
+              <small>
+                {note.actor} · {noteDate(note.at)}
+              </small>
+            </article>
+          ))}
+          {approved.map((item) => (
+            <article key={`note-${item.invoiceId}`} className="vendor-note">
+              <strong>
+                <Link href={`/facturas/${item.invoiceId}`}>Cuenta añadida desde {item.invoiceId}</Link>
+              </strong>
+              <p>{item.line}</p>
+            </article>
+          ))}
+        </section>
+        </div>
         <div>
           <section className="panel">
-            <div className="section-heading">
+            <div className="vendor-head">
               <h2>Datos bancarios</h2>
-              <button className="btn sm" type="button" onClick={() => setEditing(-1)}>
-                Añadir cuenta
+              <button className="btn vendor-pill" type="button" onClick={() => openBank(-1)}>
+                <Plus className="icon" /> Añadir cuenta
               </button>
             </div>
-            <p className="small muted">Cuentas disponibles para los pagos de este proveedor.</p>
-            {banks.length === 0 ? <p className="empty">Todavía no hay cuentas registradas.</p> : null}
+            {banks.length === 0 ? <p className="muted">Todavía no hay cuentas registradas.</p> : null}
             {banks.map((account, index) => (
-              <div key={account.id} className="bank-row">
+              <div key={account.id} className="vendor-bank">
                 <strong>
                   {account.bank} · {maskAccount(account.identifier)}
                 </strong>
                 <p>
-                  {account.holder} · {account.country} · {account.currency}
+                  {account.holder} · {account.currency}
                 </p>
                 <div className="button-row">
-                  <button className="text-btn" type="button" onClick={() => setEditing(index)}>
-                    Editar
+                  <button className="text-btn" type="button" onClick={() => openBank(index)}>
+                    Editar cuenta
                   </button>
-                  <button className="text-btn" type="button" onClick={() => setBanks((current) => current.filter((item) => item.id !== account.id))}>
+                  <button className="text-btn vendor-remove" type="button" onClick={() => setBanks((current) => current.filter((item) => item.id !== account.id))}>
                     Quitar
                   </button>
                 </div>
               </div>
             ))}
             {approved.map((item) => (
-              <div key={item.invoiceId} className="bank-row">
+              <div key={item.invoiceId} className="vendor-bank">
                 <strong>Cuenta añadida al aprobar · {item.invoiceId}</strong>
                 <p>{item.line}. La cuenta anterior se conserva.</p>
               </div>
             ))}
-            {editing !== null ? (
-              <form id="bank-editor" onSubmit={saveBank}>
-                <h3>{editing < 0 ? "Añadir cuenta" : "Editar cuenta"}</h3>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>Banco</span>
-                    <input name="bank" required defaultValue={editing >= 0 ? banks[editing]?.bank : "Banco de ejemplo"} />
-                  </label>
-                  <label className="field">
-                    <span>Titular</span>
-                    <input name="holder" required defaultValue={editing >= 0 ? banks[editing]?.holder : name || "Titular de la demo"} />
-                  </label>
-                  <label className="field">
-                    <span>País del banco</span>
-                    <input name="country" required defaultValue={editing >= 0 ? banks[editing]?.country : country || "Colombia"} />
-                  </label>
-                  <label className="field">
-                    <span>Moneda</span>
-                    <input name="currency" required defaultValue={editing >= 0 ? banks[editing]?.currency : "USD"} />
-                  </label>
-                  <label className="field">
-                    <span>Identificador de cuenta ficticio</span>
-                    <input name="identifier" required defaultValue={editing >= 0 ? banks[editing]?.identifier : ""} />
-                  </label>
-                </div>
-                <div className="button-row">
-                  <button className="btn primary" type="submit">
-                    Guardar cuenta
+          </section>
+          <section className="panel">
+            <div className="vendor-head">
+              <h2>
+                Proyectos <span className="vendor-count">{assignedProjects.length}</span>
+              </h2>
+              <button
+                className="btn vendor-pill"
+                type="button"
+                onClick={() => {
+                  setAssignPick(projectIds);
+                  setAssignOpen(true);
+                }}
+              >
+                Asignar proyectos
+              </button>
+            </div>
+            {assignedProjects.length === 0 ? <p className="muted">Este proveedor no está asignado a un proyecto.</p> : null}
+            {assignedProjects.map((project) => {
+              const savedAgreement = agreements.find((item) => item.projectId === project.id);
+              const cap = savedAgreement?.limitUsd ?? project.rules.maxAutoApproveUsd ?? session.rules.maxAutoApproveUsd;
+              const money = (savedAgreement?.currencies ?? currencies).filter((code) => currencies.includes(code));
+              return (
+                <div key={project.id} className="vendor-project">
+                  <div className="vendor-project-copy">
+                    <strong>{project.name}</strong>
+                    <small>Lista {project.code}</small>
+                    <small>
+                      Hasta {usd(cap)} USD · {money.length > 0 ? money.join(", ") : "USD"}
+                    </small>
+                  </div>
+                  <button className="btn sm vendor-agree" type="button" onClick={() => openAgreement(project.id)}>
+                    Ver acuerdo <ChevronRight className="icon" />
                   </button>
-                  <button className="btn" type="button" onClick={() => setEditing(null)}>
-                    Cancelar
-                  </button>
                 </div>
-              </form>
-            ) : null}
+              );
+            })}
+            <p className="vendor-footnote">Cada proyecto conserva su propio servicio, límite y monedas.</p>
           </section>
           {fresh ? null : (
-            <section className="panel notes-panel">
-              <h2>Notas e historial</h2>
-              <form onSubmit={saveNote}>
-                <label className="field">
-                  <span>Añadir nota</span>
-                  <textarea required maxLength={600} value={noteBody} onChange={(event) => setNoteBody(event.target.value)} />
-                </label>
-                <button className="btn" type="submit">
-                  Guardar nota
-                </button>
-              </form>
-              {[...notes].reverse().map((note) => (
-                <article key={note.id} className="provider-note">
-                  <strong>{note.title}</strong>
-                  <p>{note.body}</p>
-                  <small>
-                    {note.at.slice(0, 16).replace("T", " ")} UTC · {note.actor}
-                  </small>
-                </article>
-              ))}
-              {approved.map((item) => (
-                <article key={`note-${item.invoiceId}`} className="provider-note">
-                  <strong>Cuenta añadida desde {item.invoiceId}</strong>
-                  <p>{item.line}</p>
-                  <Link href={`/facturas/${item.invoiceId}`}>Ver {item.invoiceId}</Link>
-                </article>
-              ))}
-              {notes.length === 0 && approved.length === 0 ? <p className="muted small">Los cambios de cuentas y las notas aparecerán aquí.</p> : null}
-            </section>
-          )}
-          {fresh ? null : (
             <section className="panel">
-              <h2>Facturas</h2>
-              {invoices.length === 0 ? <p className="muted small">Este proveedor no tiene facturas en la sesión.</p> : null}
+              <div className="vendor-head">
+                <h2>Facturas</h2>
+              </div>
+              {invoices.length === 0 ? <p className="muted">Este proveedor no tiene facturas en la sesión.</p> : null}
               {invoices.map((invoice) => {
                 const record = session.records.find((item) => item.invoiceId === invoice.id);
                 const invoiceStatus = record ? session.statusOf(record) : null;
+                const figure = invoice.currency === "USD" ? `${usd(invoice.totalPayable)} USD` : amount(invoice.totalPayable, invoice.currency);
                 return (
-                  <div key={invoice.id} className="preview-row">
+                  <div key={invoice.id} className="vendor-invoice">
                     <Link href={`/facturas/${invoice.id}`}>
-                      {invoice.id}
+                      {invoice.id} · {figure}
                     </Link>
                     {invoiceStatus ? <span className={statusClass(invoiceStatus)}>{statusLabel(invoiceStatus)}</span> : null}
                   </div>
@@ -521,6 +888,189 @@ export function ProviderEditor({ id }: { id: string }) {
           )}
         </div>
       </div>
+      <div className="vendor-savebar">
+        <span>{dirty ? "Hay cambios sin guardar." : "Sin cambios pendientes"}</span>
+        <div className="button-row">
+          <button className="btn" type="button" onClick={cancel}>
+            Cancelar
+          </button>
+          <button className="btn primary" type="submit" form="vendor-form" disabled={!dirty}>
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+      <Dialog open={noteOpen} title="Añadir nota" onClose={() => setNoteOpen(false)} className="id-modal">
+        <form noValidate onSubmit={addNote}>
+          <label className={`field${noteMissing.title ? " invalid" : ""}`}>
+            <span>Título</span>
+            <input
+              value={noteTitle}
+              placeholder="Ej.: Cuenta confirmada"
+              onChange={(event) => {
+                setNoteTitle(event.target.value);
+                setNoteMissing((current) => ({ ...current, title: "" }));
+              }}
+            />
+            {noteMissing.title ? <small className="field-error">{noteMissing.title}</small> : null}
+          </label>
+          <label className={`field${noteMissing.body ? " invalid" : ""}`}>
+            <span>Comentario</span>
+            <textarea
+              rows={4}
+              maxLength={600}
+              value={noteBody}
+              placeholder="Escribe el contexto que quieres conservar"
+              onChange={(event) => {
+                setNoteBody(event.target.value);
+                setNoteMissing((current) => ({ ...current, body: "" }));
+              }}
+            />
+            {noteMissing.body ? <small className="field-error">{noteMissing.body}</small> : null}
+          </label>
+          <p>La nota se guardará junto con los cambios de la ficha.</p>
+          <div className="button-row">
+            <button className="btn" type="button" onClick={() => setNoteOpen(false)}>
+              Cancelar
+            </button>
+            <button className="btn primary" type="submit">
+              Añadir al borrador
+            </button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog open={assignOpen} title="Asignar proyectos" onClose={() => setAssignOpen(false)} className="id-modal">
+        <p>Puedes seleccionar varios proyectos. Cada uno tendrá un acuerdo independiente.</p>
+        <div>
+          {session.projects
+            .filter((project) => project.status === "active")
+            .map((project) => (
+              <label key={project.id} className="pp-choice">
+                <input
+                  type="checkbox"
+                  checked={assignPick.includes(project.id)}
+                  onChange={() =>
+                    setAssignPick((current) =>
+                      current.includes(project.id) ? current.filter((item) => item !== project.id) : [...current, project.id],
+                    )
+                  }
+                />
+                <span>
+                  <strong>{project.name}</strong>
+                  <small>Lista {project.code}</small>
+                </span>
+              </label>
+            ))}
+        </div>
+        <p className="id-callout">Desmarcar un proyecto retira la asignación para nuevos pagos; no elimina facturas ni historial.</p>
+        <div className="button-row">
+          <button className="btn" type="button" onClick={() => setAssignOpen(false)}>
+            Cancelar
+          </button>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => {
+              setProjectIds(assignPick);
+              setAssignOpen(false);
+            }}
+          >
+            Aplicar selección
+          </button>
+        </div>
+      </Dialog>
+      <Dialog open={agreement !== null} title={agreementProject?.name ?? "Acuerdo"} onClose={() => setAgreement(null)} className="id-modal">
+        {agreement && agreementProject ? (
+          <form className="agree-form" noValidate onSubmit={applyAgreement}>
+            <p className="agree-list">Lista {agreementProject.code}</p>
+            <label className="field">
+              <span>Servicio acordado</span>
+              <textarea rows={3} value={agreement.service} onChange={(event) => setAgreement({ ...agreement, service: event.target.value })} />
+            </label>
+            <label className={`field${agreement.invalidLimit ? " invalid" : ""}`}>
+              <span>Límite por factura (USD)</span>
+              <input
+                inputMode="decimal"
+                value={agreement.limit}
+                onChange={(event) => setAgreement({ ...agreement, limit: event.target.value, invalidLimit: false })}
+              />
+              {agreement.invalidLimit ? <small className="field-error">Escribe un límite mayor que cero.</small> : null}
+            </label>
+            <fieldset className={`agree-money${agreement.invalidCurrencies ? " invalid" : ""}`}>
+              <legend>Monedas del acuerdo</legend>
+              <div>
+                {currencies.map((code) => (
+                  <label key={code}>
+                    <input
+                      type="checkbox"
+                      checked={agreement.currencies.includes(code)}
+                      onChange={() =>
+                        setAgreement({
+                          ...agreement,
+                          invalidCurrencies: false,
+                          currencies: agreement.currencies.includes(code)
+                            ? agreement.currencies.filter((item) => item !== code)
+                            : [...agreement.currencies, code],
+                        })
+                      }
+                    />
+                    {code}
+                  </label>
+                ))}
+              </div>
+              {agreement.invalidCurrencies ? <small className="field-error">Elige al menos una moneda.</small> : null}
+            </fieldset>
+            <p className="id-callout">Estos cambios solo afectan al acuerdo de {agreementProject.name}.</p>
+            <div className="button-row">
+              <button className="btn" type="button" onClick={() => setAgreement(null)}>
+                Cancelar
+              </button>
+              <button className="btn primary" type="submit">
+                Aplicar al borrador
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Dialog>
+      <Dialog
+        open={editing !== null}
+        title={editing !== null && editing < 0 ? "Añadir cuenta" : "Editar cuenta"}
+        onClose={() => setEditing(null)}
+        className="id-modal"
+      >
+        <form noValidate onSubmit={saveBank}>
+          {(
+            [
+              ["bank", "Banco", bankForm.bank],
+              ["holder", "Titular", bankForm.holder],
+              ["country", "País", bankForm.country],
+              ["currency", "Moneda", bankForm.currency],
+              ["identifier", "Identificador", bankForm.identifier],
+              ["type", "Tipo de cuenta", bankForm.type],
+            ] as const
+          ).map(([key, label, value]) => (
+            <label key={key} className={`field${bankMissing[key] ? " invalid" : ""}`}>
+              <span>{label}</span>
+              <input
+                value={value}
+                onChange={(event) => {
+                  setBankForm((current) => ({ ...current, [key]: event.target.value }));
+                  setBankMissing((current) => ({ ...current, [key]: "" }));
+                }}
+              />
+              {bankMissing[key] ? <small className="field-error">{bankMissing[key]}</small> : null}
+            </label>
+          ))}
+          <p>La cuenta queda en el borrador hasta que guardes la ficha.</p>
+          <div className="button-row">
+            <button className="btn" type="button" onClick={() => setEditing(null)}>
+              Cancelar
+            </button>
+            <button className="btn primary" type="submit">
+              {editing !== null && editing < 0 ? "Añadir al borrador" : "Guardar en el borrador"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </>
   );
 }

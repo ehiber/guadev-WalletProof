@@ -1,12 +1,13 @@
 "use client";
 
-import { useSession } from "@/components/session/session-provider";
+import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const FILTERS: Array<{ id: "ALL" | DecisionStatus; label: string }> = [
@@ -32,7 +33,9 @@ function enteredLabel(value: string | undefined) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  })
+    .format(date)
+    .replace(/[\u00A0\u202F]/g, " ");
 }
 
 function purse(paid: number, retained: number, total: number) {
@@ -66,62 +69,6 @@ function motive(record: AuditRecord): string {
   if (record.jevResult && !record.jevResult.contractCoherence.answer) return "El concepto no coincide con el servicio acordado.";
   if (record.jevResult?.semanticDuplicate.answer) return "El concepto se parece a una factura ya registrada.";
   return "Requiere una decisión de una persona.";
-}
-
-function ProjectSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: Array<{ id: string; label: string }>;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const current = options.find((option) => option.id === value);
-  useEffect(() => {
-    if (!open) return;
-    function onPointer(event: MouseEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  return (
-    <div className="invoice-select" ref={root}>
-      <button type="button" aria-label="Proyecto" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((currentOpen) => !currentOpen)}>
-        <span>{current?.label}</span>
-        <ChevronDown className="icon" aria-hidden="true" />
-      </button>
-      {open ? (
-        <ul role="listbox" aria-label="Proyecto">
-          {options.map((option) => (
-            <li key={option.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={option.id === value}
-                onClick={() => {
-                  onChange(option.id);
-                  setOpen(false);
-                }}
-              >
-                {option.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
 }
 
 function BudgetMeter({
@@ -178,6 +125,19 @@ export function InboxView() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(PAGE_OPTIONS[0]);
+  const params = useSearchParams();
+  const estado = params.get("estado");
+  const alcance = params.get("alcance");
+  useEffect(() => {
+    if (alcance === "todos") session.setActiveProjectId(ALL_PROJECTS);
+    if (estado === "revision") {
+      setFilter("ESCALATED");
+      setPage(0);
+    } else if (alcance === "todos") {
+      setFilter("ALL");
+      setPage(0);
+    }
+  }, [alcance, estado, session.setActiveProjectId]);
   const project = session.projects.find((item) => item.id === session.activeProjectId);
   const showAll = session.activeProjectId === ALL_PROJECTS;
   const scoped = useMemo(
@@ -227,9 +187,23 @@ export function InboxView() {
     project?.rules.monthlyBudgetUsd ?? session.rules.monthlyBudgetUsd,
   );
 
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [batchNote, setBatchNote] = useState<string | null>(null);
+
   function chooseFilter(next: "ALL" | DecisionStatus) {
     setFilter(next);
     setPage(0);
+  }
+
+  async function onFiles(files: File[]) {
+    if (files.length === 0) return;
+    setBatchNote(null);
+    const result = await session.uploadMany(files);
+    if (result.added.length > 0 && result.failed.length === 0 && result.skipped.length === 0) {
+      setBatchNote(
+        result.added.length === 1 ? "Se procesó 1 factura." : `Se procesaron ${result.added.length} facturas.`,
+      );
+    }
   }
 
   return (
@@ -240,17 +214,40 @@ export function InboxView() {
           <p>Recibe, revisa y sigue cada decisión.</p>
         </div>
         <div className="heading-actions">
-          <Link className="btn primary" href="/facturas/nueva">
-            <Plus className="icon" /> Añadir factura
-          </Link>
+          <button className="btn primary" type="button" disabled={session.running} onClick={() => fileInput.current?.click()}>
+            <Plus className="icon" /> {session.running ? "Leyendo facturas…" : "Añadir factura"}
+          </button>
+          <input
+            ref={fileInput}
+            className="visually-hidden"
+            type="file"
+            multiple
+            accept={INVOICE_FILE_ACCEPT}
+            aria-label="Seleccionar facturas en PDF, JPG, PNG, WEBP o GIF"
+            onChange={(event) => {
+              const selected = [...(event.target.files ?? [])];
+              event.target.value = "";
+              void onFiles(selected);
+            }}
+          />
           <button className="btn" type="button" onClick={() => session.exportCsv(ordered.map((invoice) => invoice.id))}>
             <Download className="icon" /> Exportar CSV
           </button>
         </div>
       </div>
+      {session.uploadStatus ? (
+        <div className="notice" role="status">
+          <p>{session.uploadStatus}</p>
+        </div>
+      ) : null}
       {session.liveError ? (
         <div className="notice error">
           <p>{session.liveError}</p>
+        </div>
+      ) : null}
+      {batchNote && !session.running && !session.liveError ? (
+        <div className="notice" role="status">
+          <p>{batchNote}</p>
         </div>
       ) : null}
       <div className="invoice-filters">
@@ -266,13 +263,14 @@ export function InboxView() {
           })}
         </div>
         <div className="invoice-tools">
-          <ProjectSelect
+          <SelectMenu
+            label="Proyecto"
             value={session.activeProjectId}
             options={[
               ...session.projects
                 .filter((item) => item.status === "active")
-                .map((item) => ({ id: item.id, label: item.name })),
-              { id: ALL_PROJECTS, label: "Todos los proyectos" },
+                .map((item) => ({ value: item.id, label: item.name })),
+              { value: ALL_PROJECTS, label: "Todos los proyectos" },
             ]}
             onChange={(id) => {
               session.setActiveProjectId(id);
@@ -342,17 +340,17 @@ export function InboxView() {
                         {showAll ? (
                           <td>
                             {rowProject ? (
-                              <button
+                              <Link
                                 className="iv-project"
-                                type="button"
+                                href={`/proyectos/${rowProject.id}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
+                                  session.rememberProject(rowProject.id);
                                   session.setActiveProjectId(rowProject.id);
-                                  setPage(0);
                                 }}
                               >
                                 {rowProject.name}
-                              </button>
+                              </Link>
                             ) : (
                               <span className="iv-unassigned">Sin proyecto</span>
                             )}
@@ -396,22 +394,16 @@ export function InboxView() {
               </span>
               <div className="iv-pager-actions">
                 {sizeOptions.length > 1 ? (
-                  <label className="iv-page-size">
-                    <span className="visually-hidden">Facturas por página</span>
-                    <select
-                      value={size}
-                      onChange={(event) => {
-                        setPageSize(Number(event.target.value));
-                        setPage(0);
-                      }}
-                    >
-                      {sizeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option} por página
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <SelectMenu
+                    className="fit opens-up"
+                    label="Facturas por página"
+                    value={String(size)}
+                    options={sizeOptions.map((option) => ({ value: String(option), label: `${option} por página` }))}
+                    onChange={(next) => {
+                      setPageSize(Number(next));
+                      setPage(0);
+                    }}
+                  />
                 ) : null}
                 <div className="iv-pages" role="navigation" aria-label="Páginas de facturas">
                 <button type="button" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>

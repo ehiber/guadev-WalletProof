@@ -2,35 +2,14 @@
 
 import { ByokModal } from "@/components/byok-modal";
 import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
+import { SideNav } from "@/components/shell/side-nav";
+import { ProjectCreateDialog } from "@/components/views/project-form";
 import { useSession } from "@/components/session/session-provider";
 import { fxRate } from "@/lib/format";
-import {
-  BarChart3,
-  CircleHelp,
-  FileText,
-  Mail,
-  MessagesSquare,
-  RefreshCw,
-  RotateCcw,
-  Scale,
-  Shield,
-  SlidersHorizontal,
-  Users,
-} from "lucide-react";
+import { Menu, MessagesSquare, RefreshCw, RotateCcw, Shield } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-
-const NAV = [
-  { href: "/", label: "Facturas", icon: FileText, match: (path: string) => path === "/" || path.startsWith("/facturas") },
-  { href: "/correo", label: "Bandeja de correos", icon: Mail, match: (path: string) => path.startsWith("/correo") },
-  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, match: (path: string) => path.startsWith("/estadisticas") },
-  { href: "/proveedores", label: "Proveedores", icon: Users, match: (path: string) => path.startsWith("/proveedores") },
-  { href: "/tasas", label: "Tasas", icon: Scale, match: (path: string) => path.startsWith("/tasas") },
-  { href: "/reglas", label: "Reglas", icon: SlidersHorizontal, match: (path: string) => path.startsWith("/reglas") },
-  { href: "/registro", label: "Registro", icon: FileText, match: (path: string) => path.startsWith("/registro") },
-  { href: "/ayuda", label: "Ayuda", icon: CircleHelp, match: (path: string) => path.startsWith("/ayuda") },
-] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -38,12 +17,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const rates = session.fxMarket.filter((rate) => rate.currency !== "USD");
   const [tickerIndex, setTickerIndex] = useState(0);
   const [tickerPaused, setTickerPaused] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     if (tickerPaused) return;
     const timer = window.setInterval(() => setTickerIndex((current) => current + 1), 6000);
     return () => window.clearInterval(timer);
   }, [tickerPaused]);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   if (pathname.startsWith("/dev")) return <>{children}</>;
 
@@ -54,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a className="skip" href="#contenido">
         Saltar al contenido
       </a>
-      <aside className="sidebar">
+      <aside className={navOpen ? "sidebar ws-open" : "sidebar"}>
         <Link href="/" className="brand" aria-label="Blinka Guard, inicio">
           <span className="brand-mark">
             <Shield className="icon" />
@@ -70,19 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <small>Equipo de finanzas</small>
           </div>
         </div>
-        <nav className="nav" aria-label="Navegación principal">
-          {NAV.map((item) => {
-            const active = item.match(pathname);
-            const Icon = item.icon;
-            return (
-              <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
-                <Icon className="icon" />
-                <span>{item.label}</span>
-                {item.href === "/" && session.reviewCount > 0 ? <span className="nav-count">{session.reviewCount}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
+        <SideNav onNavigate={() => setNavOpen(false)} />
         <section className="ticker" aria-label="Tasas favoritas">
           <div className="ticker-head">
             <strong>Tus tasas</strong>
@@ -109,6 +81,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="workspace">
         <header className="topbar">
           <div className="breadcrumb">
+            <button
+              className="ws-mobile-button"
+              type="button"
+              aria-label="Abrir menú"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen((current) => !current)}
+            >
+              <Menu className="icon" /> Menú
+            </button>
             NovaLatam Holdings LLC <strong>/ Octubre 2026</strong>
           </div>
           <div className="top-actions">
@@ -153,6 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="contenido">{children}</main>
       </div>
       <ByokModal open={session.byokOpen} keys={session.keys} onClose={() => session.setByokOpen(false)} onSave={session.saveKeys} />
+      <ProjectCreateDialog open={session.createProjectOpen} onClose={() => session.setCreateProjectOpen(false)} />
       <OpenClawDrawer key={session.resetCount} open={session.drawerOpen} onClose={() => session.setDrawerOpen(false)} />
     </>
   );

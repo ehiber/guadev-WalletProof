@@ -78,6 +78,27 @@ export function isPayableCurrency(code: string): boolean {
   return isIsoCurrency(code) || isCryptoCurrency(code);
 }
 
+const CRYPTO_NAMES: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ether",
+  USDT: "tether",
+  USDC: "USD Coin",
+};
+
+let currencyCatalog: Array<{ code: string; name: string }> | null = null;
+
+export function currencyChoices(): Array<{ code: string; name: string }> {
+  if (currencyCatalog) return currencyCatalog;
+  const display = new Intl.DisplayNames(["es"], { type: "currency" });
+  currencyCatalog = [...ISO_4217, ...CRYPTO]
+    .map((code) => ({
+      code,
+      name: CRYPTO_NAMES[code] ?? display.of(code) ?? code,
+    }))
+    .sort((left, right) => left.code.localeCompare(right.code));
+  return currencyCatalog;
+}
+
 export function normalizeCurrency(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;

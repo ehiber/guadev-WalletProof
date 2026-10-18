@@ -30,6 +30,7 @@ export function evaluateHardRules(
   market?: FxRate[],
   settled?: FxRate | null,
   scope?: ProjectScope,
+  activeVendors?: Readonly<Record<string, boolean>>,
 ): { hard: HardRulesResult; fxSnapshot: FxRate | null } {
   if (invoice.extractionValid === false) {
     const isExactDuplicate = priors.some(
@@ -66,7 +67,8 @@ export function evaluateHardRules(
       (prior.invoiceNumber === invoice.invoiceNumber && prior.vendorId === invoice.vendorId) ||
       prior.documentHash === invoice.documentHash,
   );
-  const isVendorWhitelisted = findVendor(invoice.vendorId)?.active === true;
+  const listed = activeVendors?.[invoice.vendorId];
+  const isVendorWhitelisted = listed ?? findVendor(invoice.vendorId)?.active === true;
   const isWithinSingleLimit = !fxValid || totalPayableUsd <= rules.maxAutoApproveUsd;
   const withinCompanyBudget =
     !fxValid || Number((currentPeriodSpentUsd + totalPayableUsd).toFixed(2)) <= rules.monthlyBudgetUsd;

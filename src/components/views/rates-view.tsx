@@ -1,281 +1,434 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { fxRate, usd, vendorDisplay } from "@/lib/format";
-import { fxScopeLabel, isModifiedRate, type FxOverride, type FxScope } from "@/lib/engine/fx-overrides";
-import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, USDC_NETWORKS, fxTickerRates, paymentDate } from "@/lib/mock-data/fx-ledger";
-import type { FxRate } from "@/types/blinka";
-import { RefreshCw } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { Dialog } from "@/components/ui/ui";
+import type { FxOverride } from "@/lib/engine/fx-overrides";
+import { isPayableCurrency, normalizeCurrency } from "@/lib/engine/currency";
+import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, lookupFx, paymentDate } from "@/lib/mock-data/fx-ledger";
+import { Plus, RefreshCw, Search, Star } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+
+const FEATURED_LIMIT = 4;
+const DEFAULT_FEATURED = ["COP", "MXN", "VES"];
+const SUGGESTIONS = ["Tasa confirmada con la fuente indicada.", "No había referencia disponible."];
+
+type RateDraft = {
+  from: string;
+  to: string;
+  value: string;
+  sourceName: string;
+  comment: string;
+  featured: boolean;
+  showErrors: boolean;
+};
+
+type RateChange = {
+  id: string;
+  pair: string;
+  line: string;
+  date: string;
+};
+
+const EMPTY_DRAFT: RateDraft = {
+  from: "",
+  to: "",
+  value: "",
+  sourceName: "",
+  comment: "",
+  featured: false,
+  showErrors: false,
+};
+
+function rateFigure(value: number): string {
+  const digits = value >= 100 ? 2 : value >= 1 ? 4 : 8;
+  return new Intl.NumberFormat("es-ES", { maximumFractionDigits: digits, useGrouping: true }).format(value);
+}
+
+function parseRate(value: string): number | null {
+  const numeric = Number(value.trim().replace(",", "."));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
 
 export function RatesView() {
   const session = useSession();
-  const rates = fxTickerRates();
-  const fiat = rates.filter((rate) => (FIAT_CODES as readonly string[]).includes(rate.currency));
-  const crypto = rates.filter((rate) => (CRYPTO_CODES as readonly string[]).includes(rate.currency));
-  const used = session.records.filter((record) => record.fxSnapshot);
+  const [query, setQuery] = useState("");
+  const [featured, setFeatured] = useState<string[]>(DEFAULT_FEATURED);
+  const [draft, setDraft] = useState<RateDraft | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<RateChange[]>([]);
+  const [today, setToday] = useState("");
 
-  function quoteFor(currency: string): number | null {
-    const quote = session.fxMarket.find((item) => item.currency === currency);
-    return quote && quote.rateToUsd > 0 ? quote.rateToUsd : null;
+  useEffect(() => {
+    setToday(paymentDate());
+  }, []);
+
+  const asOf = today || DEMO_ISSUE_DATE;
+  const rows = useMemo(() => {
+    const known = [...FIAT_CODES, ...CRYPTO_CODES] as string[];
+    const extras = session.fxOverrides
+      .filter((item) => item.scope === "day" && !known.includes(item.currency))
+      .map((item) => item.currency);
+    const codes = [...known, ...extras];
+    return codes
+      .map((currency) => {
+        const manual = [...session.fxOverrides]
+          .reverse()
+          .find((item) => item.scope === "day" && item.currency === currency && item.date.slice(0, 10) === asOf);
+        const market = session.fxMarket.find((item) => item.currency === currency && item.rateToUsd > 0);
+        const ledger = lookupFx(DEMO_ISSUE_DATE, currency);
+        const rate = manual?.rateToUsd ?? market?.rateToUsd ?? ledger?.rateToUsd ?? null;
+        return {
+          currency,
+          rate,
+          date: rate === null ? null : (manual?.date ?? market?.date ?? ledger?.date ?? asOf).slice(0, 10),
+          sourceLabel: manual ? "Manual" : "Carga inicial",
+          manual,
+        };
+      })
+      .sort((left, right) => {
+        const leftStar = featured.indexOf(left.currency);
+        const rightStar = featured.indexOf(right.currency);
+        if (leftStar >= 0 || rightStar >= 0) {
+          if (leftStar < 0) return 1;
+          if (rightStar < 0) return -1;
+          return leftStar - rightStar;
+        }
+        return codes.indexOf(left.currency) - codes.indexOf(right.currency);
+      });
+  }, [asOf, featured, session.fxMarket, session.fxOverrides]);
+
+  const visible = rows.filter((row) => {
+    const haystack = `usd / ${row.currency} ${row.currency}`.toLowerCase();
+    return haystack.includes(query.trim().toLowerCase());
+  });
+  const cards = rows.filter((row) => featured.includes(row.currency));
+
+  function toggleStar(currency: string) {
+    setFeatured((current) => {
+      if (current.includes(currency)) return current.filter((item) => item !== currency);
+      if (current.length >= FEATURED_LIMIT) return current;
+      return [...current, currency];
+    });
   }
+
+  function pin(currency: string, want: boolean) {
+    setFeatured((current) => {
+      const without = current.filter((item) => item !== currency);
+      if (!want) return without;
+      return [...without, currency].slice(-FEATURED_LIMIT);
+    });
+  }
+
+  function openCreate() {
+    setDraft({ ...EMPTY_DRAFT });
+  }
+
+  function openEdit(currency: string, rate: number | null, manual?: FxOverride) {
+    setDraft({
+      from: "USD",
+      to: currency,
+      value: rate && rate > 0 ? String(rate) : "",
+      sourceName: manual?.sourceName ?? "",
+      comment: manual?.note ?? "",
+      featured: featured.includes(currency),
+      showErrors: false,
+    });
+  }
+
+  function save(event: FormEvent) {
+    event.preventDefault();
+    if (!draft) return;
+    const parsed = parsedPair(draft);
+    if (!parsed.pairOk || !parsed.currency || parsed.rateToUsd === undefined || !parsed.line) {
+      setDraft({ ...draft, showErrors: true });
+      return;
+    }
+    const date = paymentDate();
+    const { currency, rateToUsd, line } = parsed;
+    session.saveFxOverride({
+      id: existingOverrideId(currency, date, session.fxOverrides),
+      scope: "day",
+      date,
+      currency,
+      rateToUsd,
+      sourceName: draft.sourceName.trim() || undefined,
+      note: draft.comment.trim() || undefined,
+    });
+    pin(currency, draft.featured);
+    setHistory((current) => [{ id: crypto.randomUUID(), pair: `USD / ${currency}`, line, date }, ...current]);
+    setDraft(null);
+  }
+
+  const parsed = draft ? parsedPair(draft) : null;
 
   return (
     <>
       <div className="page-heading">
         <div>
           <h1>Tasas de cambio</h1>
-          <p>1 USD equivale al valor mostrado.</p>
+          <p>Consulta y gestiona las tasas para tus pagos.</p>
         </div>
-        <button className="btn" type="button" disabled={session.fxBusy} onClick={() => void session.refreshFx()}>
-          <RefreshCw className="icon" /> {session.fxBusy ? "Consultando…" : "Consultar referencia del día"}
-        </button>
+        <div className="heading-actions">
+          <button className="btn" type="button" disabled={session.fxBusy} onClick={() => void session.refreshFx()}>
+            <RefreshCw className="icon" /> {session.fxBusy ? "Consultando…" : "Consultar referencia del día"}
+          </button>
+          <button className="btn primary" type="button" onClick={openCreate}>
+            <Plus className="icon" /> Añadir tasa manual
+          </button>
+        </div>
       </div>
       {session.fxError ? (
         <div className="notice error">
           <p>{session.fxError}</p>
         </div>
       ) : null}
-      <RateStrip title="Monedas" rates={fiat} quoteFor={quoteFor} busy={session.fxBusy} asOf={session.fxMarket[0]?.date} overrides={session.fxOverrides} />
-      <RateStrip title="Criptomonedas" rates={crypto} quoteFor={quoteFor} busy={session.fxBusy} asOf={session.fxMarket[0]?.date} overrides={session.fxOverrides} crypto />
-      <RateEditor />
-      <section className="panel">
-        <h2>Conversiones del lote</h2>
-        <p>Cada fila muestra el total original, la tasa aplicada y el USD del registro.</p>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Factura</th>
-                <th scope="col">Original</th>
-                <th scope="col">Tasa</th>
-                <th scope="col">USD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {used.map((record) => {
-                const invoice = session.invoices.find((item) => item.id === record.invoiceId);
-                if (!invoice || !record.fxSnapshot) return null;
-                return (
-                  <tr key={record.invoiceId}>
-                    <td>
-                      <Link href={`/facturas/${invoice.id}`}>{invoice.id}</Link>
-                    </td>
-                    <td>
-                      {invoice.totalPayable} {invoice.currency}
-                    </td>
-                    <td>
-                      {fxRate(record.fxSnapshot.rateToUsd)}
-                      {isModifiedRate(record.fxSnapshot.source) ? <small>Tasa modificada</small> : null}
-                    </td>
-                    <td className="money">{usd(record.totalPayableUsd)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <div className="fx-featured-head">
+        <h2>Destacadas</h2>
+        <span>Marca ★ para tener hasta 4 a mano.</span>
+      </div>
+      {cards.length === 0 ? (
+        <p className="fx-featured-empty">Todavía no hay tasas destacadas.</p>
+      ) : (
+        <div className="fx-cards">
+          {cards.map((row) => (
+            <article key={row.currency} className="fx-card">
+              <div className="fx-card-top">
+                <strong>USD / {row.currency}</strong>
+                <button className="fx-star on" type="button" aria-pressed="true" aria-label={`Quitar USD / ${row.currency} de destacadas`} onClick={() => toggleStar(row.currency)}>
+                  <Star className="icon" fill="currentColor" />
+                </button>
+              </div>
+              <p className="fx-card-rate">
+                {row.rate === null ? (
+                  <span className="fx-missing">Falta añadir el valor</span>
+                ) : (
+                  <>
+                    1 USD = <strong>{rateFigure(row.rate)}</strong> {row.currency}
+                  </>
+                )}
+              </p>
+              <div className="fx-card-foot">
+                <span>{row.rate === null ? "Sin valor" : row.sourceLabel}</span>
+                <button type="button" onClick={() => openEdit(row.currency, row.rate, row.manual)}>
+                  {row.rate === null ? "Añadir valor" : "Editar"}
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
+      )}
+      <label className="plist-search fx-search">
+        <Search className="icon" />
+        <span className="visually-hidden">Buscar moneda o par</span>
+        <input type="search" value={query} placeholder="Buscar moneda o par" onChange={(event) => setQuery(event.target.value)} />
+      </label>
+      <section className="plist fx-board" aria-label="Tasas de cambio">
+        {visible.length === 0 ? (
+          <div className="empty">
+            <h2>No hay tasas que coincidan</h2>
+            <p>Prueba con el código de la moneda, por ejemplo COP.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Par de monedas</th>
+                  <th scope="col">Tasa</th>
+                  <th scope="col">Fuente y fecha</th>
+                  <th scope="col">
+                    <span className="visually-hidden">Acción</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((row) => {
+                  const starred = featured.includes(row.currency);
+                  return (
+                    <tr key={row.currency}>
+                      <td>
+                        <div className="fx-pair">
+                          <button
+                            className={`fx-star${starred ? " on" : ""}`}
+                            type="button"
+                            aria-pressed={starred}
+                            aria-label={starred ? `Quitar USD / ${row.currency} de destacadas` : `Destacar USD / ${row.currency}`}
+                            onClick={() => toggleStar(row.currency)}
+                          >
+                            <Star className="icon" fill={starred ? "currentColor" : "none"} />
+                          </button>
+                          <strong>USD / {row.currency}</strong>
+                        </div>
+                      </td>
+                      <td>
+                        {row.rate === null ? (
+                          <span className="fx-missing">Falta añadir el valor</span>
+                        ) : (
+                          <>
+                            1 USD = {rateFigure(row.rate)} {row.currency}
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {row.rate === null ? (
+                          "—"
+                        ) : (
+                          <>
+                            <span className="fx-source">{row.sourceLabel}</span>
+                            <small>{row.date}</small>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        <button className="btn sm" type="button" onClick={() => openEdit(row.currency, row.rate, row.manual)}>
+                          {row.rate === null ? "Añadir valor" : "Editar tasa"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
-      <p className="page-footer">
-        USDC vale lo mismo en {USDC_NETWORKS.join(", ")}. La tasa es la del día de pago. Si falta, lo decide la regla de tasa.
-      </p>
+      <div className="fx-foot">
+        <p>Valores de ejemplo e indicativos, no cotizaciones actuales.</p>
+        <button className="text-btn" type="button" onClick={() => setHistoryOpen(true)}>
+          Ver historial de cambios
+        </button>
+      </div>
+      <Dialog open={draft !== null} title="Añadir tasa manual" className="id-modal" onClose={() => setDraft(null)}>
+        {draft ? (
+          <form className="fx-form" noValidate onSubmit={save}>
+            <div className="vendor-pair">
+              <label className={`field${draft.showErrors && parsed && !parsed.fromOk ? " invalid" : ""}`}>
+                <span>De</span>
+                <input
+                  placeholder="Ej.: USD"
+                  value={draft.from}
+                  onChange={(event) => setDraft({ ...draft, from: event.target.value })}
+                />
+              </label>
+              <label className={`field${draft.showErrors && parsed && !parsed.toOk ? " invalid" : ""}`}>
+                <span>A</span>
+                <input placeholder="Ej.: COP" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} />
+              </label>
+            </div>
+            <label className={`field${draft.showErrors && parsed && !parsed.valueOk ? " invalid" : ""}`}>
+              <span>Valor por 1 unidad de origen</span>
+              <input
+                inputMode="decimal"
+                placeholder="Ej.: 4200"
+                value={draft.value}
+                onChange={(event) => setDraft({ ...draft, value: event.target.value })}
+              />
+              {draft.showErrors && parsed && !parsed.pairOk ? (
+                <small className="field-error">Define el par y un valor mayor que cero. Una de las dos monedas tiene que ser USD.</small>
+              ) : null}
+            </label>
+            <p className={`fx-define${parsed?.pairOk ? " ready" : ""}`}>{parsed?.line ?? "Define el par y su valor"}</p>
+            <div className="vendor-pair">
+              <label className="field">
+                <span>Fecha de aplicación</span>
+                <input readOnly value={asOf} />
+              </label>
+              <label className="field">
+                <span>Fuente</span>
+                <input
+                  placeholder="Nombre o enlace de la fuente"
+                  value={draft.sourceName}
+                  onChange={(event) => setDraft({ ...draft, sourceName: event.target.value })}
+                />
+              </label>
+            </div>
+            <label className="field">
+              <span>Comentario adicional (opcional)</span>
+              <textarea
+                rows={3}
+                placeholder="Añade contexto si lo necesitas"
+                value={draft.comment}
+                onChange={(event) => setDraft({ ...draft, comment: event.target.value })}
+              />
+            </label>
+            <p className="fx-hint">Añadir contexto ayuda a entender esta tasa cuando se revise más adelante.</p>
+            <div className="fx-chips">
+              {SUGGESTIONS.map((text) => (
+                <button key={text} type="button" onClick={() => setDraft({ ...draft, comment: text })}>
+                  {text}
+                </button>
+              ))}
+            </div>
+            <label className="fx-check">
+              <input type="checkbox" checked={draft.featured} onChange={(event) => setDraft({ ...draft, featured: event.target.checked })} />
+              <span>Destacar esta tasa</span>
+            </label>
+            <p className="plist-note">Se guardará como manual para hoy. Las decisiones anteriores conservarán la tasa que utilizaron.</p>
+            <div className="button-row">
+              <button className="btn" type="button" onClick={() => setDraft(null)}>
+                Cancelar
+              </button>
+              <button className="btn primary" type="submit">
+                Guardar tasa
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Dialog>
+      <Dialog open={historyOpen} title="Historial de cambios" className="id-modal" onClose={() => setHistoryOpen(false)}>
+        {history.length === 0 ? (
+          <p className="plist-modal-lead">Todavía no hay cambios manuales en esta sesión.</p>
+        ) : (
+          <ul className="plist-modal-list">
+            {history.map((item) => (
+              <li key={item.id}>
+                <strong>
+                  {item.pair}
+                  <small>{item.line}</small>
+                </strong>
+                <span>
+                  Manual
+                  <small>{item.date}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="button-row">
+          <button className="btn" type="button" onClick={() => setHistoryOpen(false)}>
+            Cerrar
+          </button>
+        </div>
+      </Dialog>
     </>
   );
 }
 
-function RateStrip({
-  title,
-  rates,
-  quoteFor,
-  busy,
-  asOf,
-  overrides,
-  crypto = false,
-}: {
-  title: string;
-  rates: FxRate[];
-  quoteFor: (currency: string) => number | null;
-  busy: boolean;
-  asOf?: string;
-  overrides: FxOverride[];
-  crypto?: boolean;
-}) {
-  return (
-    <section className="fx-strip" aria-label={title}>
-      <div className="section-heading">
-        <h2>{title}</h2>
-        <span className="small muted">{asOf ? `Hoy ${asOf}` : "Referencia de hoy"}</span>
-      </div>
-      <div className="fx-grid">
-        {rates.map((rate) => {
-          const modified = [...overrides].reverse().find((item) => item.scope === "day" && item.currency === rate.currency);
-          const quote = quoteFor(rate.currency);
-          const shown = modified?.rateToUsd ?? quote;
-          return (
-            <article key={rate.currency} className="fx-item">
-              <div>
-                <strong>USD / {rate.currency}</strong>
-                <span className="small">{modified ? "Tasa modificada" : "Hoy"}</span>
-              </div>
-              <b>{shown !== undefined && shown !== null ? fxRate(shown) : busy ? "…" : "—"}</b>
-              <small>
-                {modified
-                  ? `Aplica el ${modified.date}`
-                  : crypto && quote !== null
-                    ? `1 ${rate.currency} = ${usd(1 / quote)}`
-                    : "1 USD en esta moneda"}
-              </small>
-              {rate.currency === "USDC" ? <small>{USDC_NETWORKS.join(" · ")}</small> : null}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
+function existingOverrideId(currency: string, date: string, overrides: FxOverride[]): string {
+  return overrides.find((item) => item.scope === "day" && item.currency === currency && item.date.slice(0, 10) === date)?.id ?? `fx-${crypto.randomUUID()}`;
 }
 
-function RateEditor() {
-  const session = useSession();
-  const currencies = [...FIAT_CODES, ...CRYPTO_CODES];
-  const [currency, setCurrency] = useState<string>(currencies[0] ?? "COP");
-  const [date, setDate] = useState(DEMO_ISSUE_DATE);
-
-  useEffect(() => {
-    setDate(paymentDate());
-  }, []);
-  const [value, setValue] = useState("");
-  const [scope, setScope] = useState<FxScope>("day");
-  const [invoiceId, setInvoiceId] = useState("");
-  const [vendorId, setVendorId] = useState(session.vendorCards[0]?.id ?? "");
-  const [formError, setFormError] = useState<string | null>(null);
-  const matchingInvoices = session.invoices.filter((invoice) => invoice.currency === currency);
-
-  function apply(event: FormEvent) {
-    event.preventDefault();
-    const rateToUsd = Number(value.replace(",", "."));
-    if (!Number.isFinite(rateToUsd) || rateToUsd <= 0) {
-      setFormError("Escribe un valor mayor que cero.");
-      return;
-    }
-    if (!date) {
-      setFormError("Elige la fecha.");
-      return;
-    }
-    if (scope === "invoice" && !invoiceId) {
-      setFormError("Elige la factura.");
-      return;
-    }
-    if (scope === "vendor" && !vendorId) {
-      setFormError("Elige el proveedor.");
-      return;
-    }
-    setFormError(null);
-    session.saveFxOverride({
-      id: `fx-${crypto.randomUUID()}`,
-      scope,
-      date,
-      currency,
-      rateToUsd,
-      invoiceId: scope === "invoice" ? invoiceId : undefined,
-      vendorId: scope === "vendor" ? vendorId : undefined,
-    });
-    setValue("");
+function parsedPair(draft: RateDraft): {
+  fromOk: boolean;
+  toOk: boolean;
+  valueOk: boolean;
+  pairOk: boolean;
+  currency?: string;
+  rateToUsd?: number;
+  line?: string;
+} {
+  const fromCode = normalizeCurrency(draft.from);
+  const toCode = normalizeCurrency(draft.to);
+  const fromOk = Boolean(fromCode && isPayableCurrency(fromCode));
+  const toOk = Boolean(toCode && isPayableCurrency(toCode) && toCode !== fromCode);
+  const numeric = parseRate(draft.value);
+  const valueOk = numeric !== null;
+  const usdSide = fromCode === "USD" || toCode === "USD";
+  if (!fromOk || !toOk || !valueOk || !usdSide || !fromCode || !toCode || numeric === null) {
+    return { fromOk, toOk, valueOk, pairOk: false };
   }
-
-  return (
-    <section className="panel">
-      <h2>Agregar tasa</h2>
-      <p>La referencia de hoy se muestra arriba. Si agregas una tasa, esa tasa modificada es la que se aplica.</p>
-      <form onSubmit={apply}>
-        <div className="form-grid">
-          <label className="field">
-            <span>Moneda</span>
-            <select
-              value={currency}
-              onChange={(event) => {
-                setCurrency(event.target.value);
-                setInvoiceId("");
-              }}
-            >
-              {currencies.map((code) => (
-                <option key={code}>{code}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Fecha</span>
-            <input type="date" required value={date} onChange={(event) => setDate(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Valor por 1 USD</span>
-            <input inputMode="decimal" required value={value} onChange={(event) => setValue(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Alcance</span>
-            <select value={scope} onChange={(event) => setScope(event.target.value as FxScope)}>
-              <option value="day">Global de ese día</option>
-              <option value="invoice">Solo esta factura</option>
-              <option value="vendor">Este proveedor ese día</option>
-            </select>
-          </label>
-          {scope === "invoice" ? (
-            <label className="field">
-              <span>Factura</span>
-              <select
-                value={invoiceId}
-                onChange={(event) => {
-                  setInvoiceId(event.target.value);
-                }}
-              >
-                <option value="">Elige una factura</option>
-                {matchingInvoices.map((invoice) => (
-                  <option key={invoice.id} value={invoice.id}>
-                    {invoice.id} · {invoice.currency}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {scope === "vendor" ? (
-            <label className="field">
-              <span>Proveedor</span>
-              <select value={vendorId} onChange={(event) => setVendorId(event.target.value)}>
-                {session.vendorCards.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendorDisplay(vendor.id, vendor.name)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
-        {formError ? <p className="small">{formError}</p> : null}
-        <button className="btn primary" type="submit">
-          Aplicar tasa
-        </button>
-      </form>
-      {session.fxOverrides.length > 0 ? (
-        <ul>
-          {session.fxOverrides.map((item) => (
-            <li key={item.id} className="bank-row">
-              <strong>
-                {item.currency} · {fxRate(item.rateToUsd)} · {item.date}
-              </strong>
-              <p>
-                Tasa modificada · {fxScopeLabel(item.scope)}
-                {item.invoiceId ? ` · ${item.invoiceId}` : ""}
-                {item.vendorId
-                  ? ` · ${vendorDisplay(item.vendorId, session.vendorCards.find((vendor) => vendor.id === item.vendorId)?.name ?? item.vendorId)}`
-                  : ""}
-              </p>
-              <button className="text-btn" type="button" onClick={() => session.removeFxOverride(item.id)}>
-                Quitar
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
+  const currency = fromCode === "USD" ? toCode : fromCode;
+  const rateToUsd = fromCode === "USD" ? numeric : 1 / numeric;
+  const line = fromCode === "USD" ? `1 USD = ${rateFigure(numeric)} ${toCode}` : `1 ${fromCode} = ${rateFigure(numeric)} USD`;
+  return { fromOk, toOk, valueOk, pairOk: true, currency, rateToUsd, line };
 }

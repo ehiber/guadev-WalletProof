@@ -1,19 +1,9 @@
 import { isPayableCurrency } from "@/lib/engine/currency";
-import { normalizeRules } from "@/lib/engine/criteria";
-import type { CompanyRules, Invoice } from "@/types/blinka";
+import { CRITERION_ORDER, normalizeRules } from "@/lib/engine/criteria";
+import type { CompanyRules, CriterionId, Invoice } from "@/types/blinka";
 import { z } from "zod";
 
-const criterionIds = [
-  "duplicate",
-  "budget",
-  "anomalyHigh",
-  "whitelist",
-  "fx",
-  "limit",
-  "lineCheck",
-  "contract",
-  "semanticDuplicate",
-] as const;
+const criterionIds = CRITERION_ORDER as [CriterionId, ...CriterionId[]];
 
 export const rulesSchema = z.object({
   maxAutoApproveUsd: z.number().positive(),
@@ -47,6 +37,8 @@ export const invoiceSchema = z.object({
   documentLabel: z.string(),
   intakeChannel: z.enum(["dataset", "email", "chat", "upload"]).optional(),
   documentPath: z.string(),
+  projectId: z.string().optional(),
+  receivedAt: z.string().optional(),
   periodKey: z.string(),
   lineItems: z.array(z.string()),
   evidenceNote: z.string(),

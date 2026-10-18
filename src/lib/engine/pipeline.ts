@@ -48,8 +48,20 @@ export function evaluateInvoice(
   market?: FxRate[],
   settled?: FxRate | null,
   scope?: ProjectScope,
+  activeVendors?: Readonly<Record<string, boolean>>,
 ): AuditRecord {
-  const { hard, fxSnapshot } = evaluateHardRules(invoice, rules, priors, currentPeriodSpentUsd, overrides, asOf, market, settled, scope);
+  const { hard, fxSnapshot } = evaluateHardRules(
+    invoice,
+    rules,
+    priors,
+    currentPeriodSpentUsd,
+    overrides,
+    asOf,
+    market,
+    settled,
+    scope,
+    activeVendors,
+  );
   const jevResult = hard.passed ? jev : null;
   const finalStatus = decideStatus(hard, jevResult, rules);
   const rulesSnapshot: CompanyRules = { ...rules };
@@ -77,6 +89,7 @@ export function evaluateBatch(
   market?: FxRate[],
   settled?: Record<string, FxRate>,
   projects?: Project[],
+  activeVendors?: Readonly<Record<string, boolean>>,
 ): AuditRecord[] {
   const priors: PriorDocument[] = [];
   let spent = 0;
@@ -98,6 +111,7 @@ export function evaluateBatch(
       market,
       settled?.[invoice.id],
       resolved.scope,
+      activeVendors,
     );
     records.push(record);
     priors.push({

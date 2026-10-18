@@ -11,6 +11,8 @@ export interface FxOverride {
   rateToUsd: number;
   invoiceId?: string;
   vendorId?: string;
+  sourceName?: string;
+  note?: string;
 }
 
 export function fxScopeLabel(scope: FxScope): string {

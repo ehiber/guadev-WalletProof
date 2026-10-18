@@ -56,16 +56,18 @@ export function Dialog({
   title,
   children,
   onClose,
+  className = "",
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
+  className?: string;
 }) {
   if (!open) return null;
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`modal-card ${className}`.trim()} onClick={(event) => event.stopPropagation()}>
         <h2>{title}</h2>
         {children}
       </div>

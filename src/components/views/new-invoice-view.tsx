@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "@/components/session/session-provider";
+import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
 import { ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,11 +11,12 @@ export function NewInvoiceView() {
   const router = useRouter();
   const [name, setName] = useState<string | null>(null);
 
-  async function onFile(file: File | undefined) {
-    if (!file) return;
-    setName(file.name);
-    const invoice = await session.upload(file);
-    if (invoice) router.push(`/facturas/${invoice.id}`);
+  async function onFiles(files: File[]) {
+    if (files.length === 0) return;
+    setName(files.map((file) => file.name).join(", "));
+    const result = await session.uploadMany(files);
+    if (result.added.length === 1) router.push(`/facturas/${result.added[0].id}`);
+    else if (result.added.length > 1) router.push("/");
   }
 
   return (
@@ -31,25 +32,26 @@ export function NewInvoiceView() {
       </div>
       <section className="panel upload-panel">
         <h2>Documento de la factura</h2>
-        <p>PDF, PNG o JPG sintético. La lectura la hace la capa de visión. Si faltan campos, el motor rechaza la factura.</p>
+        <p>PDF, PNG, JPG, WEBP o GIF. Puedes elegir varias a la vez. La lectura la hace la capa de visión. Si faltan campos, el motor rechaza la factura.</p>
         <label className="upload-area">
           <strong>
-            <FileText className="icon" /> Seleccionar imagen o PDF
+            <FileText className="icon" /> Seleccionar facturas
           </strong>
-          <span>Hasta 4 MB. {name ? `Seleccionado: ${name}` : "Selecciona un archivo o arrástralo a este campo."}</span>
+          <span>Hasta 4 MB por archivo. {name ? `Seleccionado: ${name}` : "Selecciona uno o varios archivos, o arrástralos a este campo."}</span>
           <input
             type="file"
-            accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
+            multiple
+            accept={INVOICE_FILE_ACCEPT}
             disabled={session.running}
             onChange={(event) => {
-              const file = event.target.files?.[0];
+              const selected = [...(event.target.files ?? [])];
               event.target.value = "";
-              void onFile(file);
+              void onFiles(selected);
             }}
           />
         </label>
         <p id="scan-status" role="status">
-          {session.running ? "Leyendo el documento…" : name ? `Listo para revisar ${name}.` : "Sin archivo seleccionado."}
+          {session.uploadStatus ?? (session.running ? "Leyendo las facturas…" : name ? `Listo para revisar ${name}.` : "Sin archivo seleccionado.")}
         </p>
         {session.running ? (
           <div className="loading-box" role="status">

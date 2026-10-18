@@ -22,6 +22,7 @@ export interface BankAccount {
   country: string;
   currency: string;
   identifier: string;
+  type?: string;
 }
 
 export interface VendorNote {
@@ -31,6 +32,13 @@ export interface VendorNote {
   at: string;
   actor: string;
   invoiceId?: string;
+}
+
+export interface VendorAgreement {
+  projectId: string;
+  service: string;
+  limitUsd: number;
+  currencies: string[];
 }
 
 export interface VendorCard {
@@ -46,6 +54,8 @@ export interface VendorCard {
   costCenter: CostCenter;
   bankAccounts: BankAccount[];
   notes: VendorNote[];
+  agreements?: VendorAgreement[];
+  taxId?: string;
   demoFilled: boolean;
 }
 
@@ -122,6 +132,10 @@ const CENTER_BY_CATEGORY: Record<string, CostCenter> = {
   "Seguridad informática": "Other",
   "Por confirmar": "Other",
 };
+
+export function costCenterFor(category: string): CostCenter {
+  return CENTER_BY_CATEGORY[category] ?? "Other";
+}
 
 export function cardFromDraft(draft: VendorDraft): VendorCard {
   const slug =

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { CRITERION_LABEL } from "@/lib/engine/criteria";
 import { usd } from "@/lib/format";
 import type { CriterionAction, CriterionId, RuleCriterion } from "@/types/blinka";
@@ -109,10 +110,15 @@ export function RulesView() {
                   </div>
                   <div className="move-control">
                     <span>Mover a</span>
-                    <select value={item.action} onChange={(event) => move(item.id, event.target.value as CriterionAction)}>
-                      <option value="ESCALATED">Por revisar</option>
-                      <option value="BLOCKED">Rechazado</option>
-                    </select>
+                    <SelectMenu
+                      label="Mover a"
+                      value={item.action}
+                      options={[
+                        { value: "ESCALATED", label: "Por revisar" },
+                        { value: "BLOCKED", label: "Rechazado" },
+                      ]}
+                      onChange={(next) => move(item.id, next as CriterionAction)}
+                    />
                   </div>
                 </article>
               ))}

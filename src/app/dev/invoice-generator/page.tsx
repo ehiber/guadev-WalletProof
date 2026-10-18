@@ -1,5 +1,6 @@
 import { SyntheticDocument } from "@/components/synthetic-document";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function InvoiceGeneratorPage() {
@@ -8,7 +9,9 @@ export default function InvoiceGeneratorPage() {
       <div className="page-heading">
         <div>
           <p>
-            <Link href="/">Volver al sandbox</Link>
+            <Link className="back" href="/">
+              <ArrowLeft className="icon" /> Volver al sandbox
+            </Link>
           </p>
           <h1>Generador de facturas sintéticas</h1>
           <p>Ocho documentos ficticios para la demo. No usan recibos reales ni datasets públicos.</p>

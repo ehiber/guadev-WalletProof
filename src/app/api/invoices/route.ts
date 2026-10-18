@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   publishRules(rules);
   const keys = normalizeKeys(readJson(form?.get("keys")) ?? {});
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const mime = file.type || (file.name.toLowerCase().endsWith(".svg") ? "image/svg+xml" : "");
+  const mime = mimeFor(file);
   try {
     const outcome = await ingestIncoming({
       channel: "pdf",
@@ -54,6 +54,18 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "No se pudo leer la factura.";
     return Response.json({ error: message }, { status: 400 });
   }
+}
+
+function mimeFor(file: File): string {
+  if (file.type) return file.type;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".svg")) return "image/svg+xml";
+  return "";
 }
 
 function readJson(value: FormDataEntryValue | null | undefined): unknown {
