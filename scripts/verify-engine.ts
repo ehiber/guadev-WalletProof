@@ -11,6 +11,7 @@ import {
   normalizeAccountIdentifier,
 } from "../src/lib/engine/bank-account";
 import { extractionSchema } from "../src/lib/engine/model-provider";
+import { seedVendorCards } from "../src/lib/vendors/directory";
 
 const EXPECTED = [
   ["INV-01", "APPROVED"],
@@ -19,7 +20,7 @@ const EXPECTED = [
   ["INV-04", "ESCALATED"],
   ["INV-05", "BLOCKED"],
   ["INV-06", "ESCALATED"],
-  ["INV-07", "BLOCKED"],
+  ["INV-07", "ESCALATED"],
   ["INV-08", "ESCALATED"],
   ["INV-09", "APPROVED"],
   ["INV-10", "APPROVED"],
@@ -48,6 +49,14 @@ if (inv03.hardRulesResult.isWithinSingleLimit) {
 }
 
 let failed = false;
+
+const rutaNorteAccounts = seedVendorCards()
+  .find((vendor) => vendor.id === "vendor-rutanorte")
+  ?.bankAccounts.map((account) => account.identifier);
+if (!rutaNorteAccounts?.includes("390015227") || !rutaNorteAccounts.includes("551208764390015227")) {
+  console.error("Ruta Norte payment account and CLABE are not registered.");
+  failed = true;
+}
 
 if (
   DEFAULT_RULES.criteria.find((criterion) => criterion.id === "budget")?.action !== "ESCALATED" ||
@@ -98,8 +107,8 @@ const bankMismatch = evaluateBatch(
   undefined,
   INITIAL_PROJECTS,
 )[0];
-if (bankMismatch.finalStatus !== "BLOCKED" || bankMismatch.hardRulesResult.bankAccountMatches !== false) {
-  console.error(`Bank account mismatch was not blocked: ${bankMismatch.finalStatus}`);
+if (bankMismatch.finalStatus !== "ESCALATED" || bankMismatch.hardRulesResult.bankAccountMatches !== false) {
+  console.error(`Bank account mismatch was not escalated: ${bankMismatch.finalStatus}`);
   failed = true;
 }
 
@@ -120,6 +129,35 @@ const bankReview = evaluateBatch(
 )[0];
 if (bankReview.finalStatus !== "ESCALATED") {
   console.error(`Configured bank account review did not escalate: ${bankReview.finalStatus}`);
+  failed = true;
+}
+
+const rulesWithBlockedProject = {
+  ...DEFAULT_RULES,
+  criteria: DEFAULT_RULES.criteria.map((criterion) =>
+    criterion.id === "project" ? { ...criterion, action: "BLOCKED" as const } : criterion,
+  ),
+};
+const invoiceWithoutProject = evaluateBatch(
+  [
+    {
+      ...INITIAL_DATASET[0],
+      id: "NO-PROJECT",
+      invoiceNumber: "NO-PROJECT",
+      projectId: undefined,
+      projectReference: undefined,
+      projectAssignment: undefined,
+    },
+  ],
+  rulesWithBlockedProject,
+  [],
+  DEMO_ISSUE_DATE,
+  undefined,
+  undefined,
+  INITIAL_PROJECTS,
+)[0];
+if (invoiceWithoutProject.finalStatus !== "ESCALATED" || invoiceWithoutProject.hardRulesResult.hasProject) {
+  console.error(`Invoice without project did not escalate: ${invoiceWithoutProject.finalStatus}`);
   failed = true;
 }
 
@@ -194,7 +232,7 @@ const counts = results.reduce(
   (total, record) => ({ ...total, [record.finalStatus]: total[record.finalStatus] + 1 }),
   { APPROVED: 0, ESCALATED: 0, BLOCKED: 0 },
 );
-if (counts.APPROVED !== 9 || counts.ESCALATED !== 4 || counts.BLOCKED !== 2) {
+if (counts.APPROVED !== 9 || counts.ESCALATED !== 5 || counts.BLOCKED !== 1) {
   console.error(`Status mismatch: ${JSON.stringify(counts)}`);
   failed = true;
 }

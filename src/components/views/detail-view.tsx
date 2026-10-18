@@ -3,6 +3,7 @@
 import { useSession, type CriterionWaiver } from "@/components/session/session-provider";
 import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
 import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
+import { SyntheticDocument } from "@/components/synthetic-document";
 import { describeChecks, type CheckRow } from "@/lib/engine/criteria";
 import { currencyChoices, isPayableCurrency } from "@/lib/engine/currency";
 import { COUNTRIES } from "@/lib/vendors/countries";
@@ -550,6 +551,7 @@ export function DetailView({ id }: { id: string }) {
   const [payError, setPayError] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [comment, setComment] = useState("");
+  const [documentView, setDocumentView] = useState<"original" | "formatted">("original");
 
   if (!invoice || !record) {
     return (
@@ -816,7 +818,6 @@ export function DetailView({ id }: { id: string }) {
   }
 
   const documentKind = invoice.documentKind === "chat" ? "Chat · 1 mensaje" : invoice.documentKind === "thermal" ? "Ticket · 1 página" : "PDF · 1 página";
-
   return (
     <div className="id-page">
       <div className="id-heading">
@@ -838,40 +839,64 @@ export function DetailView({ id }: { id: string }) {
         <div>
           <section className="id-sheet">
             <div className="id-sheet-head">
-              <span>Factura recibida</span>
+              <div className="id-document-tabs" role="group" aria-label="Vista del documento">
+                <button type="button" aria-pressed={documentView === "original"} onClick={() => setDocumentView("original")}>
+                  Archivo original
+                </button>
+                <button type="button" aria-pressed={documentView === "formatted"} onClick={() => setDocumentView("formatted")}>
+                  Datos extraídos
+                </button>
+              </div>
               <span>{documentKind}</span>
             </div>
-            <article className="paper">
-              <div className="paper-brand">{name}</div>
-              <div className="paper-title">
-                <div>
-                  <strong>Factura</strong>
-                  <div className="paper-ref">{invoice.invoiceNumber}</div>
+            {documentView === "original" ? (
+              <div className="id-original-document">
+                <SyntheticDocument invoice={invoice} />
+              </div>
+            ) : (
+              <article className="paper" aria-label="Datos extraídos y formateados">
+                <div className="paper-brand">{name}</div>
+                <div className="paper-title">
+                  <div>
+                    <strong>Factura</strong>
+                    <div className="paper-ref">{invoice.invoiceNumber}</div>
+                  </div>
+                  <div className="paper-dates">
+                    <span>{longDate(invoice.issueDate)}</span>
+                    <span>Vence: {dueDate(invoice.issueDate)}</span>
+                  </div>
                 </div>
-                <div className="paper-dates">
-                  <span>{longDate(invoice.issueDate)}</span>
-                  <span>Vence: {dueDate(invoice.issueDate)}</span>
+                <div className="paper-label">CLIENTE</div>
+                <p>NovaLatam Holdings LLC</p>
+                <div className="paper-line paper-concept">
+                  <span>{conceptOf(invoice)}</span>
                 </div>
-              </div>
-              <div className="paper-label">CLIENTE</div>
-              <p>NovaLatam Holdings LLC</p>
-              <div className="paper-line paper-concept">
-                <span>{conceptOf(invoice)}</span>
-              </div>
-              <div className="paper-line">
-                <span>Subtotal</span>
-                <span>{money(invoice.subtotal, invoice.currency)}</span>
-              </div>
-              <div className="paper-line">
-                <span>Impuestos</span>
-                <span>{money(invoice.taxAmount, invoice.currency)}</span>
-              </div>
-              <div className="paper-total">
-                <span>Total</span>
-                <span>{money(invoice.totalPayable, invoice.currency)}</span>
-              </div>
-              <p className="paper-stamp">Ejemplo · sin validez fiscal</p>
-            </article>
+                {invoice.paymentAccountIdentifier ? (
+                  <div className="paper-payment">
+                    <span>Cuenta de pago detectada</span>
+                    <strong>{invoice.paymentAccountIdentifier}</strong>
+                  </div>
+                ) : null}
+                <div className="paper-line">
+                  <span>Subtotal</span>
+                  <span>{money(invoice.subtotal, invoice.currency)}</span>
+                </div>
+                <div className="paper-line">
+                  <span>Impuestos</span>
+                  <span>{money(invoice.taxAmount, invoice.currency)}</span>
+                </div>
+                <div className="paper-total">
+                  <span>Total</span>
+                  <span>{money(invoice.totalPayable, invoice.currency)}</span>
+                </div>
+                <p className="paper-stamp">Ejemplo · sin validez fiscal</p>
+              </article>
+            )}
+            <p className="id-document-note">
+              {documentView === "original"
+                ? "Documento recibido sin modificaciones. Úsalo para verificar datos que todavía no aparecen en la extracción."
+                : "Vista construida con los datos extraídos. Puede omitir información presente en el archivo original."}
+            </p>
             <div className="id-total">
               <span>Total de la factura</span>
               <strong>

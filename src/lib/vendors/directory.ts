@@ -192,7 +192,28 @@ export function seedVendorCards(): VendorCard[] {
     const currencies = CURRENCIES_BY_VENDOR[vendor.id] ?? ["USD"];
     const name = TRADE_NAME[vendor.id] ?? vendor.legalName;
     const bankAccounts: BankAccount[] =
-      vendor.bankAccountLast4 === "0000"
+      vendor.id === "vendor-rutanorte"
+        ? [
+            {
+              id: "bank-vendor-rutanorte-account",
+              bank: "Banco Integral Fiscal",
+              holder: vendor.legalName,
+              country,
+              currency: "MXN",
+              identifier: "390015227",
+              type: "Cuenta",
+            },
+            {
+              id: "bank-vendor-rutanorte-clabe",
+              bank: "Banco Integral Fiscal",
+              holder: vendor.legalName,
+              country,
+              currency: "MXN",
+              identifier: "551208764390015227",
+              type: "CLABE",
+            },
+          ]
+        : vendor.bankAccountLast4 === "0000"
         ? []
         : [
             {

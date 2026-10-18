@@ -80,7 +80,7 @@ export const VENDORS: Vendor[] = [
     active: true,
     contractSummary: "Mensajería, entrega de equipos y logística de apertura en ciudades de México.",
     costCenter: "Facilities & Maintenance",
-    bankAccountLast4: "6830",
+    bankAccountLast4: "5227",
   },
 ];
 

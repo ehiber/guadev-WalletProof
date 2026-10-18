@@ -42,7 +42,7 @@ export const DEFAULT_CRITERIA: RuleCriterion[] = [
   { id: "duplicate", action: "BLOCKED", enabled: true },
   { id: "semanticDuplicate", action: "ESCALATED", enabled: true },
   { id: "whitelist", action: "ESCALATED", enabled: true },
-  { id: "anomalyHigh", action: "BLOCKED", enabled: true },
+  { id: "anomalyHigh", action: "ESCALATED", enabled: true },
   { id: "projectVendor", action: "ESCALATED", enabled: true },
   { id: "contract", action: "ESCALATED", enabled: true },
   { id: "limit", action: "ESCALATED", enabled: true },
@@ -71,7 +71,12 @@ export function normalizeRules(
     semanticDuplicateMinProbability: input.semanticDuplicateMinProbability,
     criteria: DEFAULT_CRITERIA.map((item) => {
       const found = byId.get(item.id);
-      return found ? { id: item.id, action: found.action, enabled: found.enabled } : { ...item };
+      if (!found) return { ...item };
+      return {
+        id: item.id,
+        action: item.id === "project" ? "ESCALATED" : found.action,
+        enabled: found.enabled,
+      };
     }),
   };
 }
@@ -194,7 +199,7 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
       label: CRITERION_LABEL[row.id],
       pass: !criterion.enabled || row.pass,
       detail: criterion.enabled ? row.detail : "Criterio desactivado. No decide esta factura.",
-      action: criterion.enabled && !row.pass ? criterion.action : null,
+      action: criterion.enabled && !row.pass ? (row.id === "project" ? "ESCALATED" : criterion.action) : null,
     });
   }
 

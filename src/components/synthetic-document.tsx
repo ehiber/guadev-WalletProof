@@ -24,7 +24,7 @@ export function DocumentThumb({ invoice }: { invoice: Invoice }) {
 
 export function SyntheticDocument({ invoice }: { invoice: Invoice }) {
   const path = invoice.documentPath;
-  if (hasFilePreview(path)) {
+  if (path) {
     if (invoice.documentKind === "pdf") {
       return <iframe title={invoice.id} src={path} className="h-80 w-full rounded-lg border border-[#e6e8ee] bg-white" />;
     }

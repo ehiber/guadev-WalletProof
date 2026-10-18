@@ -158,7 +158,7 @@ export function decideStatus(hard: HardRulesResult, jev: JevResult | null, rules
   consider(hardFailures, rules, "duplicate", hard.isExactDuplicate);
   consider(hardFailures, rules, "budget", !hard.isWithinPeriodBudget);
   consider(hardFailures, rules, "whitelist", !hard.isVendorWhitelisted);
-  consider(hardFailures, rules, "project", !hard.hasProject);
+  if (!hard.hasProject && criterionEnabled(rules, "project")) hardFailures.push("ESCALATED");
   consider(hardFailures, rules, "projectVendor", hard.hasProject && !hard.isVendorOnProject);
   consider(hardFailures, rules, "limit", !hard.isWithinSingleLimit);
   consider(hardFailures, rules, "lineCheck", hard.lineCheck === true);

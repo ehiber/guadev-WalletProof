@@ -133,7 +133,7 @@ const HINT: Record<CriterionId, string> = {
 const POLICY_GROUPS: Array<{ ids: CriterionId[]; title: string; detail: string }> = [
   { ids: ["duplicate", "semanticDuplicate"], title: "Cobro no duplicado", detail: "Rechaza coincidencias exactas y revisa posibles repeticiones semánticas." },
   { ids: ["whitelist"], title: "Proveedor autorizado", detail: "Un proveedor nuevo requiere validación antes del pago." },
-  { ids: ["anomalyHigh"], title: "Cuenta de cobro autorizada", detail: "Una cuenta distinta o una señal crítica impide el pago automático." },
+  { ids: ["anomalyHigh"], title: "Cuenta de cobro autorizada", detail: "Una cuenta distinta o una señal crítica requiere revisión antes del pago." },
   { ids: ["projectVendor", "contract"], title: "Factura acorde con lo contratado", detail: "Comprueba proveedor, servicio y concepto dentro del proyecto." },
   { ids: ["limit"], title: "Límite por factura", detail: "Los importes superiores necesitan aprobación humana." },
   { ids: ["budget"], title: "Presupuesto disponible", detail: "Sin saldo suficiente, el pago queda pendiente de revisión." },
