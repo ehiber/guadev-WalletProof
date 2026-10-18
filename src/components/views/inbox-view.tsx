@@ -56,7 +56,7 @@ export function InboxView() {
             disabled={session.running}
             onClick={() => void session.runLive(session.invoices.map((invoice) => invoice.id))}
           >
-            <RefreshCw className="icon" /> {session.running ? "Ejecutando…" : "Pipeline en vivo"}
+            <RefreshCw className="icon" /> {session.running ? "Revisando…" : "Revisar con IA"}
           </button>
         </div>
       </div>

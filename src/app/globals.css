@@ -231,3 +231,41 @@ main > .panel {
     transform: rotate(360deg);
   }
 }
+
+.nav-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-tip-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  left: 0;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #121826;
+  box-shadow: 0 8px 24px #12182633;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.nav-tip.align-end .nav-tip-bubble {
+  left: auto;
+  right: 0;
+}
+
+.nav-tip:hover .nav-tip-bubble,
+.nav-tip:focus-within .nav-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+}

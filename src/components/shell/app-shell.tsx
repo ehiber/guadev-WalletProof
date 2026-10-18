@@ -8,7 +8,6 @@ import {
   BarChart3,
   CircleHelp,
   FileText,
-  KeyRound,
   Mail,
   MessagesSquare,
   RefreshCw,
@@ -113,26 +112,35 @@ export function AppShell({ children }: { children: ReactNode }) {
             NovaLatam Holdings LLC <strong>/ Octubre 2026</strong>
           </div>
           <div className="top-actions">
-            <button className="text-btn" type="button" onClick={session.reset}>
-              <RotateCcw className="icon" /> Restaurar
-            </button>
-            <button className="text-btn" type="button" onClick={() => session.setByokOpen(true)}>
-              <KeyRound className="icon" /> Claves
-            </button>
-            <button className="text-btn" type="button" onClick={() => session.setDrawerOpen(true)}>
-              <MessagesSquare className="icon" /> OpenClaw
-            </button>
-            <button
-              className="text-btn"
-              type="button"
-              disabled={session.running}
-              onClick={() => void session.runLive(session.invoices.map((invoice) => invoice.id))}
-            >
-              <RefreshCw className="icon" /> {session.running ? "Ejecutando…" : "Pipeline en vivo"}
-            </button>
-            <Link href="/ayuda" className="text-btn">
-              Ayuda
-            </Link>
+            <span className="nav-tip">
+              <button className="text-btn" type="button" onClick={session.reset}>
+                <RotateCcw className="icon" /> Restaurar
+              </button>
+              <span className="nav-tip-bubble" role="tooltip">
+                Vuelve el panel con la data por defecto.
+              </span>
+            </span>
+            <span className="nav-tip">
+              <button className="text-btn" type="button" onClick={() => session.setDrawerOpen(true)}>
+                <MessagesSquare className="icon" /> OpenClaw
+              </button>
+              <span className="nav-tip-bubble" role="tooltip">
+                Ventana de chat que simula el puente de WhatsApp u otro canal con OpenClaw.
+              </span>
+            </span>
+            <span className="nav-tip align-end">
+              <button
+                className="text-btn"
+                type="button"
+                disabled={session.running}
+                onClick={() => void session.runLive(session.invoices.map((invoice) => invoice.id))}
+              >
+                <RefreshCw className="icon" /> {session.running ? "Revisando…" : "Revisar con IA"}
+              </button>
+              <span className="nav-tip-bubble" role="tooltip">
+                Lee otra vez las facturas y escribe una explicación clara de cada decisión.
+              </span>
+            </span>
             <div className="identity">
               <span className="avatar">MT</span>
               <span>
