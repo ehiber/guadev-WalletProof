@@ -19,7 +19,7 @@ import {
   type NavPrefs,
   type NavSection,
 } from "@/lib/mock-data/nav";
-import { DEMO_PROJECT_ID, INITIAL_PROJECTS } from "@/lib/mock-data/projects";
+import { ALL_PROJECTS, INITIAL_PROJECTS } from "@/lib/mock-data/projects";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { maskAccount, seedVendorCards, type VendorCard } from "@/lib/vendors/directory";
@@ -180,7 +180,7 @@ export function useSession(): SessionValue {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [rules, setRules] = useState<CompanyRules>(() => cloneRules(DEFAULT_RULES));
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
-  const [activeProjectId, setActiveProjectId] = useState(DEMO_PROJECT_ID);
+  const [activeProjectId, setActiveProjectId] = useState(ALL_PROJECTS);
   const [nav, setNav] = useState<NavPrefs>(() => freshNav());
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_DATASET);
@@ -519,7 +519,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     pullGeneration.current += 1;
     setRules(cloneRules(DEFAULT_RULES));
     setProjects(INITIAL_PROJECTS);
-    setActiveProjectId(DEMO_PROJECT_ID);
+    setActiveProjectId(ALL_PROJECTS);
     setNav(freshNav());
     setCreateProjectOpen(false);
     setInvoices(INITIAL_DATASET);
