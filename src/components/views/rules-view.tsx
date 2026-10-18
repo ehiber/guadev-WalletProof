@@ -3,13 +3,18 @@
 import { useSession } from "@/components/session/session-provider";
 import { Button, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
-import { CRITERION_LABEL, CRITERION_ORDER, criterionOf } from "@/lib/engine/criteria";
+import {
+  BUSINESS_CRITERION_ORDER,
+  CRITERION_LABEL,
+  SYSTEM_CRITERION_ORDER,
+  criterionOf,
+} from "@/lib/engine/criteria";
 import { currencyChoices } from "@/lib/engine/currency";
 import { effectiveRules } from "@/lib/mock-data/projects";
 import type { CompanyRules, CriterionAction, CriterionId, Project, ProjectRules } from "@/types/blinka";
 import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
 const GLOBAL = "global";
 
@@ -81,7 +86,7 @@ function seedCriterion(id: CriterionId): GroupCriterion {
 }
 
 function projectCriteria(project: Project): GroupCriterion[] {
-  return CRITERION_ORDER.filter((id) => project.rules.criteria?.[id]).map(seedCriterion);
+  return BUSINESS_CRITERION_ORDER.filter((id) => project.rules.criteria?.[id]).map(seedCriterion);
 }
 
 function seedGroups(projects: Project[]): RuleGroup[] {
@@ -91,7 +96,7 @@ function seedGroups(projects: Project[]): RuleGroup[] {
       name: "Criterios generales",
       scope: "global",
       projectId: null,
-      criteria: CRITERION_ORDER.map(seedCriterion),
+      criteria: BUSINESS_CRITERION_ORDER.map(seedCriterion),
     },
     ...projects.map((project) => ({
       id: `rules-${project.id}`,
@@ -112,18 +117,35 @@ function criterionDetail(item: GroupCriterion) {
 }
 
 const HINT: Record<CriterionId, string> = {
-  duplicate: "Referencia y proveedor únicos",
-  budget: "El pago cabe en el presupuesto del periodo",
-  anomalyHigh: "La cuenta de cobro coincide y el pedido no parece manipulado",
-  whitelist: "El proveedor está activo en la lista",
+  duplicate: "Misma referencia y proveedor, o mismo documento",
+  semanticDuplicate: "Mismo servicio o entregable y periodo que otra factura",
+  budget: "El pago cabe en el saldo disponible del periodo",
+  anomalyHigh: "La cuenta coincide y no hay señales críticas de manipulación",
+  whitelist: "El proveedor está en la lista permitida",
   project: "La factura tiene un proyecto asignado",
-  projectVendor: "El proveedor pertenece a ese proyecto",
-  fx: "Hay tasa para la moneda en el día de pago",
-  limit: "El total no supera el límite por factura",
-  lineCheck: "Las líneas coinciden con el total",
-  contract: "El concepto corresponde al servicio contratado",
-  semanticDuplicate: "No repite el mismo entregable de otra factura",
+  projectVendor: "El proveedor está permitido en ese proyecto",
+  fx: "El sistema dispone de una tasa para la fecha de pago",
+  limit: "El total no supera el límite de aprobación automática",
+  lineCheck: "Subtotal, impuestos y total cuadran",
+  contract: "El servicio y el concepto coinciden con lo contratado",
 };
+
+const POLICY_GROUPS: Array<{ ids: CriterionId[]; title: string; detail: string }> = [
+  { ids: ["duplicate", "semanticDuplicate"], title: "Cobro no duplicado", detail: "Rechaza coincidencias exactas y revisa posibles repeticiones semánticas." },
+  { ids: ["whitelist"], title: "Proveedor autorizado", detail: "Un proveedor nuevo requiere validación antes del pago." },
+  { ids: ["anomalyHigh"], title: "Cuenta de cobro autorizada", detail: "Una cuenta distinta o una señal crítica impide el pago automático." },
+  { ids: ["projectVendor", "contract"], title: "Factura acorde con lo contratado", detail: "Comprueba proveedor, servicio y concepto dentro del proyecto." },
+  { ids: ["limit"], title: "Límite por factura", detail: "Los importes superiores necesitan aprobación humana." },
+  { ids: ["budget"], title: "Presupuesto disponible", detail: "Sin saldo suficiente, el pago queda pendiente de revisión." },
+  { ids: ["project"], title: "Proyecto identificado", detail: "Aplica cuando la empresa exige asignar cada factura a un proyecto." },
+];
+
+function policyHeading(id: CriterionId, criteria: GroupCriterion[]) {
+  const policy = POLICY_GROUPS.find((item) => item.ids.includes(id));
+  if (!policy) return undefined;
+  const firstVisible = criteria.find((criterion) => criterion.builtinId && policy.ids.includes(criterion.builtinId));
+  return firstVisible?.builtinId === id ? policy : undefined;
+}
 
 function periodLabel() {
   return new Intl.DateTimeFormat("es", { month: "long", year: "numeric" }).format(new Date());
@@ -311,39 +333,33 @@ export function RulesView() {
     });
   }
 
-  const checks = useMemo(() => {
-    const rows = project
-      ? session.rules.criteria
-          .map((item) => criterionOf(applied, item.id))
-          .filter((item) => item.enabled)
-          .map((item) => ({
-            name: CRITERION_LABEL[item.id],
-            source: project.rules.criteria?.[item.id] ? `${project.name} · Excepción` : "Empresa · Heredado",
-          }))
-      : visible.flatMap((group) =>
-          group.criteria
-            .filter((item) => liveState(item).enabled)
-            .map((item) => ({
-              name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name,
-              source: "Empresa",
-            })),
-        );
-    if (project) {
-      rows.push(
-        ...visible.flatMap((group) =>
-          group.criteria
-            .filter((item) => !item.builtinId && item.enabled)
-            .map((item) => ({ name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name, source: project.name })),
-        ),
-      );
-    }
+  const checks = (() => {
+    const rows = session.rules.criteria
+      .map((item) => criterionOf(applied, item.id))
+      .filter((item) => item.enabled)
+      .map((item) => ({
+        name: CRITERION_LABEL[item.id],
+        source: SYSTEM_CRITERION_ORDER.includes(item.id)
+          ? "Sistema · Automático"
+          : project?.rules.criteria?.[item.id]
+            ? `${project.name} · Excepción`
+            : project
+              ? "Empresa · Heredado"
+              : "Empresa",
+      }));
     rows.push(
-      { name: "Tasa válida para la evaluación", source: "Comprobación necesaria" },
-      { name: "Proveedor no excluido", source: "Comprobación necesaria" },
+      ...visible.flatMap((group) =>
+        group.criteria
+          .filter((item) => !item.builtinId && item.enabled)
+          .map((item) => ({
+            name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name,
+            source: project?.name ?? "Empresa",
+          })),
+      ),
+      { name: "Lectura válida del documento", source: "Sistema · Automático" },
     );
-    if (project) rows.push({ name: "Proyecto identificado y activo", source: project.name });
     return rows;
-  }, [applied, project, session.rules.criteria, visible]);
+  })();
 
   return (
     <div className="cr-page">
@@ -379,7 +395,7 @@ export function RulesView() {
           <strong>{project ? "Criterios del proyecto" : "Criterios generales"}</strong>
           <p>
             {project
-              ? `Hereda ${session.rules.criteria.length} criterios generales. Aquí solo gestionas sus excepciones y criterios adicionales.`
+              ? `Hereda ${BUSINESS_CRITERION_ORDER.length} políticas generales. Aquí solo gestionas sus excepciones y criterios adicionales.`
               : "Se aplican a todas las facturas, en todos los proyectos."}
           </p>
         </div>
@@ -422,7 +438,7 @@ export function RulesView() {
             {project ? (
               <div className="cr-inheritance">
                 <div>
-                  <strong>{session.rules.criteria.length} criterios generales heredados</strong>
+                  <strong>{BUSINESS_CRITERION_ORDER.length} políticas generales heredadas</strong>
                   <span>Se aplican automáticamente mientras no exista una excepción para este proyecto.</span>
                 </div>
                 <button type="button" className="cr-global-link" onClick={() => setScopeId(GLOBAL)}>
@@ -507,8 +523,16 @@ export function RulesView() {
                         {group.criteria.map((criterion) => {
                           const state = liveState(criterion);
                           const key = `${group.id}|${criterion.key}`;
+                          const heading = criterion.builtinId ? policyHeading(criterion.builtinId, group.criteria) : undefined;
                           return (
-                            <article key={key} className={state.enabled ? "cr-row" : "cr-row cr-disabled"}>
+                            <Fragment key={key}>
+                              {heading ? (
+                                <div className="cr-policy-heading">
+                                  <strong>{heading.title}</strong>
+                                  <span>{heading.detail}</span>
+                                </div>
+                              ) : null}
+                              <article className={state.enabled ? "cr-row" : "cr-row cr-disabled"}>
                               <label className="cr-pick">
                                 <input
                                   type="checkbox"
@@ -572,7 +596,8 @@ export function RulesView() {
                                   </button>
                                 </div>
                               </div>
-                            </article>
+                              </article>
+                            </Fragment>
                           );
                         })}
                     </div>
@@ -580,6 +605,7 @@ export function RulesView() {
                 );
               })
             )}
+            <SystemChecks />
           </section>
         </div>
 
@@ -638,6 +664,38 @@ export function RulesView() {
         />
       ) : null}
     </div>
+  );
+}
+
+function SystemChecks() {
+  return (
+    <section className="cr-system" aria-labelledby="system-checks-title">
+      <div className="cr-system-head">
+        <div>
+          <h3 id="system-checks-title">Comprobaciones automáticas del sistema</h3>
+          <p>No son políticas empresariales y no se pueden eliminar. Protegen la integridad de cada evaluación.</p>
+        </div>
+        <span>Siempre activas</span>
+      </div>
+      <ul>
+        <li>
+          <strong>Lectura válida del documento</strong>
+          <span>Comprueba que existan los datos mínimos para evaluar la factura.</span>
+        </li>
+        <li>
+          <strong>Importes y total coherentes</strong>
+          <span>Rechaza la factura cuando subtotal, impuestos y total no cuadran.</span>
+        </li>
+        <li>
+          <strong>Tasa de conversión disponible</strong>
+          <span>Deja el pago pendiente si no puede calcularse su equivalente en USD.</span>
+        </li>
+        <li>
+          <strong>Integridad de la evaluación</strong>
+          <span>Conserva evidencia, reglas aplicadas y resultado para auditoría.</span>
+        </li>
+      </ul>
+    </section>
   );
 }
 
@@ -844,8 +902,8 @@ function CriterionDialog({
         .flatMap((group) => group.criteria.map((entry) => ({ value: `copy:${group.id}|${entry.key}`, label: entry.name }))),
     })),
     {
-      label: "Comprobaciones del sistema",
-      options: CRITERION_ORDER.map((id) => ({ value: `builtin:${id}`, label: CRITERION_LABEL[id] })),
+      label: "Políticas disponibles",
+      options: BUSINESS_CRITERION_ORDER.map((id) => ({ value: `builtin:${id}`, label: CRITERION_LABEL[id] })),
     },
   ].filter((group) => group.options.length);
   const builtin = field.startsWith("builtin:");

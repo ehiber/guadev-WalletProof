@@ -15,7 +15,7 @@ const EXPECTED = [
   ["INV-05", "BLOCKED"],
   ["INV-06", "ESCALATED"],
   ["INV-07", "BLOCKED"],
-  ["INV-08", "BLOCKED"],
+  ["INV-08", "ESCALATED"],
   ["INV-09", "APPROVED"],
   ["INV-10", "APPROVED"],
   ["INV-11", "ESCALATED"],
@@ -43,6 +43,14 @@ if (inv03.hardRulesResult.isWithinSingleLimit) {
 }
 
 let failed = false;
+
+if (
+  DEFAULT_RULES.criteria.find((criterion) => criterion.id === "budget")?.action !== "ESCALATED" ||
+  DEFAULT_RULES.criteria.find((criterion) => criterion.id === "lineCheck")?.action !== "BLOCKED"
+) {
+  console.error("Default consequences for budget or arithmetic checks are incorrect.");
+  failed = true;
+}
 
 const differentAccount = compareBankAccount("TEST-NUEVA-9999", ["SYN-4412"]);
 const sameAccount = compareBankAccount(" syn 4412 ", ["SYN-4412"]);
@@ -172,7 +180,7 @@ const counts = results.reduce(
   (total, record) => ({ ...total, [record.finalStatus]: total[record.finalStatus] + 1 }),
   { APPROVED: 0, ESCALATED: 0, BLOCKED: 0 },
 );
-if (counts.APPROVED !== 8 || counts.ESCALATED !== 4 || counts.BLOCKED !== 3) {
+if (counts.APPROVED !== 8 || counts.ESCALATED !== 5 || counts.BLOCKED !== 2) {
   console.error(`Status mismatch: ${JSON.stringify(counts)}`);
   failed = true;
 }

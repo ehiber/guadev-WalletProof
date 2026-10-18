@@ -1,6 +1,5 @@
 "use client";
 
-import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { Paperclip, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -92,17 +91,17 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
         payload.mime = selected.type;
         payload.filename = selected.name;
       }
-      const response = await fetch("/api/webhooks/openclaw", {
+      const response = await fetch("/api/inbound/chat", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-openclaw-secret": OPENCLAW_DEMO_SECRET,
         },
-        body: JSON.stringify({ kind: "ingest", payload }),
+        body: JSON.stringify({ payload }),
       });
       const body = (await response.json().catch(() => null)) as {
         accepted?: boolean;
         reply?: string;
+        error?: string;
         invoice?: { id?: string };
       } | null;
       if (body?.accepted === false) {
@@ -110,7 +109,11 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
         return;
       }
       if (!response.ok) {
-        push({ id: crypto.randomUUID(), role: "in", text: "No se pudo entregar. Reenvía el archivo." });
+        push({
+          id: crypto.randomUUID(),
+          role: "in",
+          text: body?.error || "No se pudo procesar la factura. Inténtalo de nuevo.",
+        });
         return;
       }
       const invoiceId = body?.invoice?.id;

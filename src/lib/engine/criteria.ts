@@ -9,42 +9,45 @@ import type {
 
 export const CRITERION_ORDER: CriterionId[] = [
   "duplicate",
-  "budget",
-  "anomalyHigh",
-  "whitelist",
-  "project",
-  "projectVendor",
-  "fx",
-  "limit",
-  "lineCheck",
-  "contract",
   "semanticDuplicate",
+  "whitelist",
+  "anomalyHigh",
+  "projectVendor",
+  "contract",
+  "limit",
+  "budget",
+  "project",
+  "fx",
+  "lineCheck",
 ];
 
+export const BUSINESS_CRITERION_ORDER: CriterionId[] = CRITERION_ORDER.filter((id) => id !== "fx" && id !== "lineCheck");
+export const SYSTEM_CRITERION_ORDER: CriterionId[] = ["fx", "lineCheck"];
+
 export const CRITERION_LABEL: Record<CriterionId, string> = {
-  duplicate: "Documento no duplicado",
-  budget: "Presupuesto suficiente",
-  anomalyHigh: "Anomalía alta o cuenta distinta",
-  whitelist: "Proveedor autorizado",
-  project: "Factura asignada a un proyecto",
-  projectVendor: "Proveedor asignado al proyecto",
-  fx: "Tasa del día de pago",
-  limit: "Total dentro del límite automático",
-  lineCheck: "Coherencia aritmética de líneas",
-  contract: "Concepto acorde con el servicio",
-  semanticDuplicate: "Cobro no repetido",
+  duplicate: "Coincidencia exacta",
+  semanticDuplicate: "Posible cobro repetido",
+  budget: "Presupuesto disponible",
+  anomalyHigh: "Cuenta registrada y sin señales críticas",
+  whitelist: "Proveedor en la lista permitida",
+  project: "Proyecto identificado",
+  projectVendor: "Proveedor permitido en el proyecto",
+  fx: "Tasa de conversión disponible",
+  limit: "Límite por factura",
+  lineCheck: "Importes y total coherentes",
+  contract: "Servicio acorde con lo contratado",
 };
 
 export const DEFAULT_CRITERIA: RuleCriterion[] = [
   { id: "duplicate", action: "BLOCKED", enabled: true },
-  { id: "budget", action: "BLOCKED", enabled: true },
+  { id: "budget", action: "ESCALATED", enabled: true },
   { id: "anomalyHigh", action: "BLOCKED", enabled: true },
   { id: "whitelist", action: "ESCALATED", enabled: true },
   { id: "project", action: "ESCALATED", enabled: true },
   { id: "projectVendor", action: "ESCALATED", enabled: true },
   { id: "fx", action: "ESCALATED", enabled: true },
   { id: "limit", action: "ESCALATED", enabled: true },
-  { id: "lineCheck", action: "ESCALATED", enabled: true },
+  { id: "lineCheck", action: "BLOCKED", enabled: true },
   { id: "contract", action: "ESCALATED", enabled: true },
   { id: "semanticDuplicate", action: "ESCALATED", enabled: true },
 ];
