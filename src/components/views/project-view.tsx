@@ -48,6 +48,11 @@ export function ProjectView({ id }: { id: string }) {
     );
   }
 
+  // Capture the narrowed project for event handlers, which can run after render.
+  const projectId = project.id;
+  const projectRules = project.rules;
+  const projectCurrencies = project.currencies ?? [];
+
   const invoices = session.invoices.filter((invoice) => invoice.projectId === project.id);
   const review = invoices.filter((invoice) => {
     const record = session.records.find((item) => item.invoiceId === invoice.id);
@@ -86,14 +91,14 @@ export function ProjectView({ id }: { id: string }) {
 
   function addPicked() {
     if (!picked) return;
-    session.addVendorToProject(project.id, picked);
+    session.addVendorToProject(projectId, picked);
     setPickerOpen(false);
   }
 
   function openAgreement(card: VendorCard) {
-    const existing = card.agreements?.find((item) => item.projectId === project.id);
-    const cap = existing?.limitUsd ?? project.rules.maxAutoApproveUsd ?? session.rules.maxAutoApproveUsd;
-    const catalog = card.currencies.length > 0 ? card.currencies : (project.currencies ?? []);
+    const existing = card.agreements?.find((item) => item.projectId === projectId);
+    const cap = existing?.limitUsd ?? projectRules.maxAutoApproveUsd ?? session.rules.maxAutoApproveUsd;
+    const catalog = card.currencies.length > 0 ? card.currencies : projectCurrencies;
     const pickedCurrencies = (existing?.currencies ?? catalog).filter((code) => catalog.includes(code));
     setAgreement({
       vendorId: card.id,
@@ -120,9 +125,9 @@ export function ProjectView({ id }: { id: string }) {
     session.saveVendorCard({
       ...card,
       agreements: [
-        ...(card.agreements ?? []).filter((item) => item.projectId !== project.id),
+        ...(card.agreements ?? []).filter((item) => item.projectId !== projectId),
         {
-          projectId: project.id,
+          projectId,
           service: agreement.service.trim(),
           limitUsd,
           currencies: [...agreement.currencies].sort(),
