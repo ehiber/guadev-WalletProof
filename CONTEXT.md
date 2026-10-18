@@ -1,6 +1,6 @@
-# 🛡️ Blinka Guard: Autonomous AP Agent with Deterministic Rules & System-1 Cognitive Guardrails (JEV)
+# 🛡️ Wallet Proof: Autonomous AP Agent with Deterministic Rules & System-1 Cognitive Guardrails (JEV)
 
-> **Hackathon 30X — Reto Blinka (+ Integración nativa con JEV de TypeSafe AI & OpenClaw)**
+> **Hackathon 30X — Wallet Proof (+ Integración nativa con JEV de TypeSafe AI & OpenClaw)**
 > Agente financiero autónomo que procesa cuentas por pagar (PDFs corporativos, tickets térmicos arrugados, recibos hechos a mano y capturas de chat), valida políticas corporativas con **0% de margen de error matemático**, trazabilidad cambiaria diaria e inmutabilidad criptográfica en cada decisión.
 
 ---
@@ -9,7 +9,7 @@
 Las empresas constituidas en EE. UU. que operan con equipos, proveedores y contratistas en Latinoamérica procesan decenas de facturas mensuales en múltiples monedas y formatos no estructurados. 
 
 **Por qué fallan los agentes tradicionales en finanzas:**
-Confiar la aprobación de un pago únicamente al *prompt* de un LLM tradicional es un riesgo crítico: los LLMs alucinan en la aritmética, confunden el `subtotal` con el `total a pagar` (ignorando impuestos) y no garantizan determinismo ante límites presupuestarios. En el Reto Blinka, **aprobar un solo pago fuera de las reglas es motivo de descalificación directa**.
+Confiar la aprobación de un pago únicamente al *prompt* de un LLM tradicional es un riesgo crítico: los LLMs alucinan en la aritmética, confunden el `subtotal` con el `total a pagar` (ignorando impuestos) y no garantizan determinismo ante límites presupuestarios. En Wallet Proof, **aprobar un solo pago fuera de las reglas es motivo de descalificación directa**.
 
 **La Solución — Pipeline Híbrido de 4 Capas:**
 Separamos la percepción visual, la validación matemática, el juicio semántico rápido y la explicabilidad en 4 capas especializadas:
@@ -90,7 +90,7 @@ Para evitar fricción en la evaluación (cero pantallas de login) y demostrar co
 Dado que las facturas en la vida real llegan por chat o correo y las aprobaciones suelen pedirse por mensajería, integramos **OpenClaw** manteniendo la instancia privada del equipo segura:
 
 1. **Skills Oficiales en el Repositorio (`/openclaw-skills/`):**
-   - `blinka-ingest-invoice.skill.json`: Permite enviar una foto de recibo, PDF o texto de cobro a OpenClaw por WhatsApp/Telegram y disparar un `POST /api/webhooks/openclaw` hacia Blinka Guard.
+   - `blinka-ingest-invoice.skill.json`: Permite enviar una foto de recibo, PDF o texto de cobro a OpenClaw por WhatsApp/Telegram y disparar un `POST /api/webhooks/openclaw` hacia Wallet Proof.
    - `blinka-human-approval.skill.json`: Cuando una factura queda en estado `ESCALATED`, el agente envía al CFO un resumen ejecutivo con la tasa FX aplicada, el veredicto de JEV y comandos rápidos para aprobar o rechazar la excepción desde el chat.
 2. **Simulador y Monitor en Vivo ("OpenClaw Live Drawer"):**
    - El endpoint `/api/webhooks/openclaw` valida el header `x-openclaw-secret` para conectarse con nuestra instancia real durante la demo.

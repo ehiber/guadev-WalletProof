@@ -1,7 +1,7 @@
 {
   "name": "blinka-ingest-invoice",
   "version": "3.0.0",
-  "description": "Entrega una foto, un PDF o un texto de cobro sintético a Blinka Guard. No aprueba, no rechaza y no calcula montos. El secreto lo expande el shell, no el modelo.",
+  "description": "Entrega una foto, un PDF o un texto de cobro sintético a Wallet Proof. No aprueba, no rechaza y no calcula montos. El secreto lo expande el shell, no el modelo.",
   "delivery": "curl",
   "command": "curl -sS -X POST \"$BLINKA_WEBHOOK_URL\" -H \"content-type: application/json\" -H \"x-openclaw-secret: $BLINKA_WEBHOOK_SECRET\" --data-binary @invoice.json",
   "bodyFile": {

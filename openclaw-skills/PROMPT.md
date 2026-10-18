@@ -1,6 +1,6 @@
 OpenClaw ya está configurado. No cambies el gateway, el túnel, los canales ni los tokens que ya existen.
 
-Actualiza solo la skill blinka-ingest-invoice. Las variables BLINKA_WEBHOOK_URL y BLINKA_WEBHOOK_SECRET tienen que existir en el entorno del proceso del gateway, no solo en el chat. La URL es el origen público de Blinka seguido de /api/webhooks/openclaw. El secreto es el mismo valor que en el servidor se llama OPENCLAW_WEBHOOK_SECRET. No lo imprimas.
+Actualiza solo la skill blinka-ingest-invoice. Las variables BLINKA_WEBHOOK_URL y BLINKA_WEBHOOK_SECRET tienen que existir en el entorno del proceso del gateway, no solo en el chat. La URL es el origen público de Wallet Proof seguido de /api/webhooks/openclaw. El secreto es el mismo valor que en el servidor se llama OPENCLAW_WEBHOOK_SECRET. No lo imprimas.
 
 La skill no usa la herramienta HTTP. Esa herramienta manda x-openclaw-secret vacío. La entrega es un curl para que el shell expanda las variables.
 

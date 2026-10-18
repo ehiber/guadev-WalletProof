@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/ui";
 import type { FxOverride } from "@/lib/engine/fx-overrides";
 import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, lookupFx, paymentDate } from "@/lib/mock-data/fx-ledger";
 import { Plus, RefreshCw, Search, Star } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 function rateSource(manual: FxOverride | undefined, market: { source: string } | undefined, ledger: { source: string } | null): string {
   if (manual) return manual.sourceName?.trim() || "Manual";
@@ -31,13 +31,7 @@ export function RatesView() {
   const editor = useRateEditor();
   const { featured } = editor;
   const [query, setQuery] = useState("");
-  const [today, setToday] = useState("");
-
-  useEffect(() => {
-    setToday(paymentDate());
-  }, []);
-
-  const asOf = today || DEMO_ISSUE_DATE;
+  const [asOf] = useState(paymentDate);
   const rows = useMemo(() => {
     const known = [...FIAT_CODES, ...CRYPTO_CODES] as string[];
     const extras = session.fxOverrides
@@ -243,4 +237,3 @@ export function RatesView() {
     </>
   );
 }
-

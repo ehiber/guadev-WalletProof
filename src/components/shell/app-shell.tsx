@@ -16,10 +16,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const [navOpen, setNavOpen] = useState(false);
 
-  useEffect(() => {
-    setNavOpen(false);
-  }, [pathname]);
-
   if (pathname.startsWith("/dev")) return <>{children}</>;
 
   return (

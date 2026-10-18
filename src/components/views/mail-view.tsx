@@ -27,10 +27,8 @@ export function MailView() {
   const [query, setQuery] = useState("");
   const [folder, setFolder] = useState<(typeof FOLDERS)[number]["id"]>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const mail = mounted ? session.mail : null;
-  const busy = mounted && session.mailBusy;
+  const mail = session.mail;
+  const busy = session.mailBusy;
   const messages = (mail?.messages ?? []).filter((message) => {
     const inFolder = folder === "all" || message.status === folder;
     const haystack = `${message.subject} ${message.from} ${decisionOf(message, session)}`.toLowerCase();
@@ -45,7 +43,7 @@ export function MailView() {
         <div>
           <h1>Bandeja de correos</h1>
           <p>
-            {connected ? mail?.address : mounted ? "Sin buzón configurado" : "Cargando el sondeo"}. Se listan los mensajes de los últimos dos días. Esta bandeja no redacta ni envía mensajes.
+            {connected ? mail?.address : "Sin buzón configurado"}. Se listan los mensajes de los últimos dos días. Esta bandeja no redacta ni envía mensajes.
           </p>
         </div>
         <div className="heading-actions">
@@ -61,7 +59,7 @@ export function MailView() {
       ) : (
         <div className="notice info">
           <p>
-            {mail?.lastPollAt ? `Último sondeo ${formatPoll(mail.lastPollAt)}` : mounted ? "Todavía no hay sondeo." : "Cargando el sondeo."} ·{" "}
+            {mail?.lastPollAt ? `Último sondeo ${formatPoll(mail.lastPollAt)}` : "Todavía no hay sondeo."} ·{" "}
             {connected ? "Conectado" : "Desconectado"}
           </p>
         </div>
@@ -100,7 +98,7 @@ export function MailView() {
           {messages.length === 0 ? (
             <div className="empty">
               <h3>No hay correos en esta vista</h3>
-              <p>{mounted ? "Cambia la carpeta o la búsqueda." : "Cargando el sondeo."}</p>
+              <p>Cambia la carpeta o la búsqueda.</p>
             </div>
           ) : (
             <div className="mail-scroll">
@@ -226,27 +224,23 @@ function Reader({ message }: { message: MailLogEntry }) {
 }
 
 function useMessageFiles(id: string, enabled: boolean): MailFile[] {
-  const [files, setFiles] = useState<MailFile[]>([]);
+  const [result, setResult] = useState<{ id: string; files: MailFile[] }>({ id: "", files: [] });
   useEffect(() => {
-    if (!enabled) {
-      setFiles([]);
-      return;
-    }
+    if (!enabled) return;
     let cancelled = false;
-    setFiles([]);
     void fetch(`/api/inbound/gmail/files?message=${encodeURIComponent(id)}`)
       .then((response) => (response.ok ? response.json() : { files: [] }))
       .then((body: { files?: MailFile[] }) => {
-        if (!cancelled) setFiles(body.files ?? []);
+        if (!cancelled) setResult({ id, files: body.files ?? [] });
       })
       .catch(() => {
-        if (!cancelled) setFiles([]);
+        if (!cancelled) setResult({ id, files: [] });
       });
     return () => {
       cancelled = true;
     };
   }, [id, enabled]);
-  return files;
+  return enabled && result.id === id ? result.files : [];
 }
 
 function FilePreview({ file }: { file: MailFile }) {

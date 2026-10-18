@@ -10,7 +10,7 @@ main:focus{outline:none}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{.sidebar,.topbar,.heading-actions,.page-footer,.btn,.toast,.back,.actions-box{display:none!important}.workspace{margin:0}main{padding:0}.detail-grid{grid-template-columns:1fr 1fr}.evidence{order:0}.decision-column{order:0}.panel,.decision-panel{break-inside:avoid}body{background:white}}
 
-/* Blinka-inspired extension: financial controls remain visually quiet. */
+/* Wallet Proof: financial controls remain visually quiet. */
 .btn{border-radius:999px}.sidebar .brand-mark{background:var(--accent)}
 .brand-name{letter-spacing:-.035em}.sidebar-note{position:relative;padding-bottom:50px;overflow:hidden}.sidebar-note:after{content:"";position:absolute;width:180px;height:55px;border:1px solid #b6c4ed;border-radius:50%;transform:rotate(-22deg);top:82px;left:-30px;box-shadow:0 8px 0 -7px #b6c4ed,0 16px 0 -15px #b6c4ed;pointer-events:none}
 .field input:not([type=checkbox]):not([type=range]),.field select{width:100%;min-height:44px;padding:10px 12px;border:1px solid #c8d0e0;border-radius:7px;background:#fff;color:var(--ink)}

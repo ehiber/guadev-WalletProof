@@ -207,9 +207,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
   const previewUrls = useRef<string[]>([]);
   const invoicesRef = useRef(invoices);
-  invoicesRef.current = invoices;
   const seenArrivals = useRef(new Set<string>());
   const pullGeneration = useRef(0);
+
+  useEffect(() => {
+    invoicesRef.current = invoices;
+  }, [invoices]);
   const refreshFx = useCallback(async () => {
     const asOf = paymentDate();
     setPaymentDay(asOf);
@@ -332,39 +335,43 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     async function pull() {
-      const generation = pullGeneration.current;
-      const response = await fetch("/api/invoices");
-      if (!response.ok || cancelled || generation !== pullGeneration.current) return;
-      const body = (await response.json()) as ArrivalBody;
-      if (cancelled || generation !== pullGeneration.current) return;
-      const arrivals = body.arrived ?? [];
-      const extra = arrivals.filter((item) => !seenArrivals.current.has(item.invoice.id));
-      if (extra.length > 0) {
-        for (const item of extra) seenArrivals.current.add(item.invoice.id);
-        setInvoices((current) => {
-          const known = new Set(current.map((invoice) => invoice.id));
-          const fresh = extra
-            .map((item) => item.invoice)
-            .filter((invoice) => !known.has(invoice.id))
-            .map((invoice) => (invoice.receivedAt ? invoice : { ...invoice, receivedAt: new Date().toISOString() }));
-          return fresh.length === 0 ? current : [...current, ...fresh];
-        });
-      }
-      setLive((current) => {
-        let changed = false;
-        const next = { ...current };
-        for (const arrival of arrivals) {
-          if (next[arrival.invoice.id]) continue;
-          next[arrival.invoice.id] = {
-            timings: arrival.timings,
-            raw: arrival.raw,
-            explanation: arrival.explanation,
-          };
-          changed = true;
+      try {
+        const generation = pullGeneration.current;
+        const response = await fetch("/api/invoices");
+        if (!response.ok || cancelled || generation !== pullGeneration.current) return;
+        const body = (await response.json()) as ArrivalBody;
+        if (cancelled || generation !== pullGeneration.current) return;
+        const arrivals = body.arrived ?? [];
+        const extra = arrivals.filter((item) => !seenArrivals.current.has(item.invoice.id));
+        if (extra.length > 0) {
+          for (const item of extra) seenArrivals.current.add(item.invoice.id);
+          setInvoices((current) => {
+            const known = new Set(current.map((invoice) => invoice.id));
+            const fresh = extra
+              .map((item) => item.invoice)
+              .filter((invoice) => !known.has(invoice.id))
+              .map((invoice) => (invoice.receivedAt ? invoice : { ...invoice, receivedAt: new Date().toISOString() }));
+            return fresh.length === 0 ? current : [...current, ...fresh];
+          });
         }
-        return changed ? next : current;
-      });
-      if (body.human) setHuman((current) => ({ ...current, ...body.human }));
+        setLive((current) => {
+          let changed = false;
+          const next = { ...current };
+          for (const arrival of arrivals) {
+            if (next[arrival.invoice.id]) continue;
+            next[arrival.invoice.id] = {
+              timings: arrival.timings,
+              raw: arrival.raw,
+              explanation: arrival.explanation,
+            };
+            changed = true;
+          }
+          return changed ? next : current;
+        });
+        if (body.human) setHuman((current) => ({ ...current, ...body.human }));
+      } catch {
+        // The next interval retries automatically; this also covers a dev-server restart.
+      }
     }
     void pull();
     const timer = window.setInterval(() => void pull(), 2000);
@@ -419,9 +426,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     }
     void (async () => {
-      const response = await fetch("/api/inbound/gmail");
-      const body = (await response.json().catch(() => null)) as GmailStatus | null;
-      if (!cancelled && response.ok && body) setMail((current) => current ?? body);
+      try {
+        const response = await fetch("/api/inbound/gmail");
+        const body = (await response.json().catch(() => null)) as GmailStatus | null;
+        if (!cancelled && response.ok && body) setMail((current) => current ?? body);
+      } catch {
+        // The scheduled poll reports the connection state and retries shortly.
+      }
     })();
     void tick();
     const timer = window.setInterval(() => void tick(), 25_000);
@@ -671,7 +682,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "blinka-guard-conciliacion.csv";
+    link.download = "wallet-proof-conciliacion.csv";
     link.click();
     URL.revokeObjectURL(url);
   }, [explanationOf, invoices, records, statusOf]);

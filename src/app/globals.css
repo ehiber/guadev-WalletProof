@@ -810,4 +810,151 @@ main > .panel {
   }
 }
 
-.st-probe { color: red; }
+/* Canonical compact shell: the sidebar is an overlay, never a second page header. */
+@media (max-width: 700px) {
+  .sidebar {
+    position: fixed;
+    inset: 64px auto 0 0;
+    display: none;
+    width: min(300px, 88vw);
+    height: calc(100dvh - 64px);
+    padding: 22px 16px;
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+    box-shadow: 10px 0 28px rgba(28, 37, 58, 0.15);
+    z-index: 80;
+  }
+
+  .sidebar.ws-open {
+    display: flex;
+  }
+
+  .sidebar .brand {
+    display: flex;
+    margin: 0 0 18px;
+  }
+
+  .sidebar .brand-name {
+    display: grid;
+    font-size: 22px;
+  }
+
+  .sidebar .brand-name span {
+    display: block;
+    margin: 5px 0 0;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+  }
+
+  .sidebar .org,
+  .sidebar .nav-bottom,
+  .sidebar .ticker {
+    display: flex;
+  }
+
+  .sidebar .nav {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .sidebar .nav a {
+    min-width: 0;
+    font-size: 13px;
+  }
+
+  .workspace {
+    margin-left: 0;
+  }
+
+  .topbar {
+    min-height: 64px;
+    padding: 8px 16px;
+  }
+
+  .topbar .top-actions .text-btn {
+    display: none;
+  }
+
+  .plist .table-wrap,
+  .fx-board .table-wrap,
+  .iv-table-gap .table-wrap {
+    overflow: visible;
+  }
+
+  .plist-vendors table,
+  .plist-vendors tbody,
+  .fx-board table,
+  .fx-board tbody,
+  .iv-table,
+  .iv-table tbody {
+    display: block;
+  }
+
+  .plist-vendors thead,
+  .fx-board thead,
+  .iv-table thead {
+    display: none;
+  }
+
+  .plist-vendors tr,
+  .fx-board tr,
+  .iv-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 14px;
+    padding: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .plist-vendors td,
+  .fx-board td,
+  .iv-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  .plist-vendors td:first-child,
+  .fx-board td:first-child,
+  .iv-table td:first-child {
+    grid-column: 1;
+  }
+
+  .plist-vendors td:nth-child(2),
+  .plist-vendors td:nth-child(3),
+  .plist-vendors td:nth-child(4),
+  .fx-board td:nth-child(2),
+  .fx-board td:nth-child(3),
+  .iv-table td:not(:first-child):not(:last-child) {
+    grid-column: 1 / -1;
+  }
+
+  .plist-vendors td:last-child,
+  .fx-board td:last-child,
+  .iv-table td:last-child {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .plist-vendors td:nth-child(2)::before,
+  .plist-vendors td:nth-child(3)::before,
+  .plist-vendors td:nth-child(4)::before,
+  .fx-board td:nth-child(2)::before,
+  .fx-board td:nth-child(3)::before {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .plist-vendors td:nth-child(2)::before { content: "Servicio"; }
+  .plist-vendors td:nth-child(3)::before { content: "Monedas"; }
+  .plist-vendors td:nth-child(4)::before { content: "Proyectos"; }
+  .fx-board td:nth-child(2)::before { content: "Tasa"; }
+  .fx-board td:nth-child(3)::before { content: "Fuente y fecha"; }
+}
