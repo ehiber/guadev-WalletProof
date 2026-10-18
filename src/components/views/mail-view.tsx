@@ -43,13 +43,21 @@ export function MailView() {
         <div>
           <h1>Bandeja de correos</h1>
           <p>
-            {connected ? mail?.address : "Sin buzón configurado"}. Se listan los mensajes de los últimos dos días. Esta bandeja no redacta ni envía mensajes.
+            Envía facturas a {connected ? mail?.address : "ehiberbot@gmail.com"}. Se listan los mensajes de los últimos dos días; esta bandeja no redacta ni envía mensajes.
           </p>
         </div>
         <div className="heading-actions">
           <button className="btn" type="button" disabled={busy} onClick={() => void session.refreshMail()}>
             <RefreshCw className="icon" /> {busy ? "Revisando…" : "Actualizar"}
           </button>
+        </div>
+      </div>
+      <div className="notice info">
+        <div>
+          <strong>Integración de correo {connected ? "activa" : "configurable"}</strong>
+          <p>
+            Cada factura enviada a <b>{connected ? mail?.address : "ehiberbot@gmail.com"}</b> se revisa automáticamente. Wallet Proof lee el correo y sus adjuntos PDF o de imagen, crea la factura cuando encuentra datos suficientes y deja el resultado en esta bandeja.
+          </p>
         </div>
       </div>
       {mail?.lastError ? (
