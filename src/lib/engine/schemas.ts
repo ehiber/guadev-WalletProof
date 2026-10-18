@@ -45,6 +45,7 @@ export const invoiceSchema = z.object({
     requested: z.string(),
     registered: z.array(z.string()),
     matches: z.boolean(),
+    usedDefault: z.boolean().optional(),
   }).optional(),
   projectAssignment: z.object({
     projectId: z.string().min(1),

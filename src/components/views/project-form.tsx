@@ -20,7 +20,7 @@ export function ProjectCreateView({ projectId }: { projectId?: string }) {
   const [code, setCode] = useState(project?.code ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [listName, setListName] = useState(project?.vendorListName ?? "");
-  const [budget, setBudget] = useState(String(project?.rules.monthlyBudgetUsd ?? "0.00"));
+  const [budget, setBudget] = useState(String(project?.rules.monthlyBudgetUsd ?? "5000.00"));
   const [month, setMonth] = useState(project?.budgetMonth ?? new Date().toISOString().slice(0, 7));
   const [currencies, setCurrencies] = useState<string[]>(project?.currencies?.length ? project.currencies : ["USD"]);
   const [vendorIds, setVendorIds] = useState<string[]>(project?.vendorIds ?? []);

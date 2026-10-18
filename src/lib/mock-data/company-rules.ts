@@ -3,7 +3,7 @@ import type { CompanyRules, Vendor } from "@/types/blinka";
 
 export const DEFAULT_RULES: CompanyRules = {
   maxAutoApproveUsd: 500,
-  monthlyBudgetUsd: 2500,
+  monthlyBudgetUsd: 10_000,
   jevConfidenceThreshold: 0.85,
   semanticDuplicateMinProbability: 0.8,
   criteria: DEFAULT_CRITERIA.map((item) => ({ ...item })),

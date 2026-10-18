@@ -4,7 +4,12 @@ import { DEMO_ISSUE_DATE } from "../src/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "../src/lib/mock-data/initial-dataset";
 import { INITIAL_PROJECTS } from "../src/lib/mock-data/projects";
 import { matchProject } from "../src/lib/engine/project-matcher";
-import { compareBankAccount, normalizeAccountIdentifier } from "../src/lib/engine/bank-account";
+import {
+  compareBankAccount,
+  defaultBankAccount,
+  isLikelyPaymentAccountIdentifier,
+  normalizeAccountIdentifier,
+} from "../src/lib/engine/bank-account";
 import { extractionSchema } from "../src/lib/engine/model-provider";
 
 const EXPECTED = [
@@ -18,7 +23,7 @@ const EXPECTED = [
   ["INV-08", "ESCALATED"],
   ["INV-09", "APPROVED"],
   ["INV-10", "APPROVED"],
-  ["INV-11", "ESCALATED"],
+  ["INV-11", "APPROVED"],
   ["INV-12", "APPROVED"],
   ["INV-13", "APPROVED"],
   ["INV-14", "APPROVED"],
@@ -54,7 +59,16 @@ if (
 
 const differentAccount = compareBankAccount("TEST-NUEVA-9999", ["SYN-4412"]);
 const sameAccount = compareBankAccount(" syn 4412 ", ["SYN-4412"]);
-if (differentAccount.matches || !sameAccount.matches || normalizeAccountIdentifier("SYN-44 12") !== "SYN4412") {
+const defaultAccount = defaultBankAccount(["SYN-4412"]);
+if (
+  differentAccount.matches ||
+  !sameAccount.matches ||
+  !defaultAccount?.matches ||
+  !defaultAccount.usedDefault ||
+  normalizeAccountIdentifier("SYN-44 12") !== "SYN4412" ||
+  isLikelyPaymentAccountIdentifier("WP-T26-018") ||
+  !isLikelyPaymentAccountIdentifier("TEST-NUEVA-9999")
+) {
   console.error("Deterministic bank account comparison failed.");
   failed = true;
 }
@@ -180,7 +194,7 @@ const counts = results.reduce(
   (total, record) => ({ ...total, [record.finalStatus]: total[record.finalStatus] + 1 }),
   { APPROVED: 0, ESCALATED: 0, BLOCKED: 0 },
 );
-if (counts.APPROVED !== 8 || counts.ESCALATED !== 5 || counts.BLOCKED !== 2) {
+if (counts.APPROVED !== 9 || counts.ESCALATED !== 4 || counts.BLOCKED !== 2) {
   console.error(`Status mismatch: ${JSON.stringify(counts)}`);
   failed = true;
 }

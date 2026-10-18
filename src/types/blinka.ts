@@ -124,6 +124,7 @@ export interface BankAccountCheck {
   requested: string;
   registered: string[];
   matches: boolean;
+  usedDefault?: boolean;
 }
 
 export interface Invoice {

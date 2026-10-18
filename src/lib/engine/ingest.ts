@@ -1,5 +1,5 @@
 import { extractDocument, payableIsAuditable, type DocumentRead, type PartialExtraction } from "@/lib/engine/1-extractor";
-import { compareBankAccount } from "@/lib/engine/bank-account";
+import { compareBankAccount, defaultBankAccount, isLikelyPaymentAccountIdentifier } from "@/lib/engine/bank-account";
 import { evaluateHardRules } from "@/lib/engine/2-hard-rules";
 import { evaluateJev } from "@/lib/engine/3-jev-client";
 import { explainDecision } from "@/lib/engine/4-explainer";
@@ -12,7 +12,7 @@ import { assignProject } from "@/lib/engine/project-matcher";
 import { effectiveRules, INITIAL_PROJECTS, scopeFor } from "@/lib/mock-data/projects";
 import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { sha256Bytes, sha256Hex } from "@/lib/engine/sha256";
-import { matchVendor } from "@/lib/mock-data/company-rules";
+import { findVendor, matchVendor } from "@/lib/mock-data/company-rules";
 import { rememberDocument } from "@/lib/inbound/documents";
 import { pushOpenClawEvent } from "@/lib/openclaw/constants";
 import { rememberArrival } from "@/lib/session-inbox";
@@ -298,10 +298,16 @@ export async function ingestIncoming(input: {
 
   const projects = input.projects ?? INITIAL_PROJECTS;
   invoice = assignProject(invoice, projects);
-  if (invoice.paymentAccountIdentifier) {
-    const fallbackAccount = vendor?.bankAccountLast4 && vendor.bankAccountLast4 !== "0000" ? [`SYN-${vendor.bankAccountLast4}`] : [];
-    const registered = input.vendorAccounts?.[invoice.vendorId] ?? fallbackAccount;
-    if (registered.length > 0) invoice.bankAccountCheck = compareBankAccount(invoice.paymentAccountIdentifier, registered);
+  const accountVendor = vendor ?? findVendor(invoice.vendorId);
+  const fallbackAccount = accountVendor?.bankAccountLast4 && accountVendor.bankAccountLast4 !== "0000" ? [`SYN-${accountVendor.bankAccountLast4}`] : [];
+  const registered = input.vendorAccounts?.[invoice.vendorId] ?? fallbackAccount;
+  if (registered.length > 0) {
+    if (isLikelyPaymentAccountIdentifier(invoice.paymentAccountIdentifier)) {
+      invoice.bankAccountCheck = compareBankAccount(invoice.paymentAccountIdentifier, registered);
+    } else {
+      invoice.paymentAccountIdentifier = undefined;
+      invoice.bankAccountCheck = defaultBankAccount(registered);
+    }
   }
   const { priors, spent, spentByProject } = priorState(input.existing, input.rules, asOf, market, projects);
   const resolved = scopeFor(invoice, projects, invoice.projectId ? (spentByProject[invoice.projectId] ?? 0) : 0);

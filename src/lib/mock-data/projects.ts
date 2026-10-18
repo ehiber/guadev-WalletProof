@@ -30,7 +30,7 @@ export const INITIAL_PROJECTS: Project[] = [
     budgetMonth: "2026-10",
     currencies: ["USD", "MXN"],
     vendorIds: ["vendor-cloudnova", "vendor-andessoft", "vendor-lexglobal"],
-    rules: { maxAutoApproveUsd: 200, monthlyBudgetUsd: 800 },
+    rules: { maxAutoApproveUsd: 500, monthlyBudgetUsd: 5_000 },
   },
   {
     id: MEXICO_PROJECT_ID,
@@ -42,7 +42,7 @@ export const INITIAL_PROJECTS: Project[] = [
     budgetMonth: "2026-10",
     currencies: ["USD", "MXN"],
     vendorIds: ["vendor-nubemex", "vendor-fiscalmx", "vendor-rutanorte"],
-    rules: { maxAutoApproveUsd: 300, monthlyBudgetUsd: 900 },
+    rules: { maxAutoApproveUsd: 750, monthlyBudgetUsd: 6_000 },
   },
 ];
 

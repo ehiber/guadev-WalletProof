@@ -162,6 +162,16 @@ function plainCopy(check: CheckRow, invoice: Invoice, record: AuditRecord): { la
         pass: "No hay una solicitud de pagar a una cuenta distinta.",
         fail: "La factura pide pagar a una cuenta distinta o el mensaje no es fiable.",
       };
+    case "bankAccount":
+      return {
+        label: "Cuenta de pago",
+        pass: invoice.bankAccountCheck?.usedDefault
+          ? "La factura no indica otra cuenta. Se mantiene la cuenta predeterminada del proveedor."
+          : "La cuenta indicada está registrada para este proveedor.",
+        fail: invoice.bankAccountCheck?.requested
+          ? `La cuenta ${invoice.bankAccountCheck.requested} no coincide con las cuentas registradas del proveedor.`
+          : "La cuenta indicada no coincide con las cuentas registradas del proveedor.",
+      };
     case "anomalyMedium":
       return {
         label: "Riesgo medio detectado",
@@ -201,6 +211,7 @@ function everydayLabel(id: string): string {
     limit: "Dentro del límite",
     lineCheck: "Total consistente",
     anomalyHigh: "Cuenta de pago",
+    bankAccount: "Cuenta de pago",
     anomalyMedium: "Riesgo medio detectado",
     contract: "Concepto del servicio",
     semanticDuplicate: "Cobro no repetido",

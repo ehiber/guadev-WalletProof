@@ -40,16 +40,16 @@ export const CRITERION_LABEL: Record<CriterionId, string> = {
 
 export const DEFAULT_CRITERIA: RuleCriterion[] = [
   { id: "duplicate", action: "BLOCKED", enabled: true },
-  { id: "budget", action: "ESCALATED", enabled: true },
-  { id: "anomalyHigh", action: "BLOCKED", enabled: true },
-  { id: "whitelist", action: "ESCALATED", enabled: true },
-  { id: "project", action: "ESCALATED", enabled: true },
-  { id: "projectVendor", action: "ESCALATED", enabled: true },
-  { id: "fx", action: "ESCALATED", enabled: true },
-  { id: "limit", action: "ESCALATED", enabled: true },
-  { id: "lineCheck", action: "BLOCKED", enabled: true },
-  { id: "contract", action: "ESCALATED", enabled: true },
   { id: "semanticDuplicate", action: "ESCALATED", enabled: true },
+  { id: "whitelist", action: "ESCALATED", enabled: true },
+  { id: "anomalyHigh", action: "BLOCKED", enabled: true },
+  { id: "projectVendor", action: "ESCALATED", enabled: true },
+  { id: "contract", action: "ESCALATED", enabled: true },
+  { id: "limit", action: "ESCALATED", enabled: true },
+  { id: "budget", action: "ESCALATED", enabled: true },
+  { id: "project", action: "ESCALATED", enabled: true },
+  { id: "fx", action: "ESCALATED", enabled: true },
+  { id: "lineCheck", action: "BLOCKED", enabled: true },
 ];
 
 export function criterionOf(rules: CompanyRules, id: CriterionId): RuleCriterion {
@@ -132,7 +132,9 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
       label: "Cuenta de pago registrada",
       pass: !bankCriterion.enabled || hard.bankAccountMatches !== false,
       detail:
-        hard.bankAccountMatches !== false
+        invoice.bankAccountCheck.usedDefault
+          ? `La factura no indica otra cuenta. Se mantiene ${invoice.bankAccountCheck.requested}, la cuenta predeterminada del proveedor.`
+          : hard.bankAccountMatches !== false
           ? `La cuenta ${invoice.bankAccountCheck.requested} está registrada para el proveedor.`
           : `La cuenta ${invoice.bankAccountCheck.requested} no coincide con las cuentas registradas del proveedor.`,
       action: bankCriterion.enabled && hard.bankAccountMatches === false ? bankCriterion.action : null,
