@@ -5,8 +5,14 @@ import { useRateEditor } from "@/components/views/rate-editor";
 import { Dialog } from "@/components/ui/ui";
 import type { FxOverride } from "@/lib/engine/fx-overrides";
 import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, lookupFx, paymentDate } from "@/lib/mock-data/fx-ledger";
-import { Plus, RefreshCw, Search, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, Star } from "lucide-react";
 import { useMemo, useState } from "react";
+
+const PAGE_OPTIONS = [5, 10, 20];
+
+function pageSizeOptions(total: number) {
+  return PAGE_OPTIONS.filter((size, index) => total > (index === 0 ? 0 : PAGE_OPTIONS[index - 1]));
+}
 
 function rateSource(manual: FxOverride | undefined, market: { source: string } | undefined, ledger: { source: string } | null): string {
   if (manual) return manual.sourceName?.trim() || "Manual";
@@ -31,6 +37,8 @@ export function RatesView() {
   const editor = useRateEditor();
   const { featured } = editor;
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_OPTIONS[0]);
   const [asOf] = useState(paymentDate);
   const rows = useMemo(() => {
     const known = [...FIAT_CODES, ...CRYPTO_CODES] as string[];
@@ -70,6 +78,13 @@ export function RatesView() {
     const haystack = `usd / ${row.currency} ${row.currency}`.toLowerCase();
     return haystack.includes(query.trim().toLowerCase());
   });
+  const sizeOptions = pageSizeOptions(visible.length);
+  const size = sizeOptions.includes(pageSize) ? pageSize : (sizeOptions[sizeOptions.length - 1] ?? PAGE_OPTIONS[0]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / size));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageRows = visible.slice(currentPage * size, currentPage * size + size);
+  const rangeStart = visible.length === 0 ? 0 : currentPage * size + 1;
+  const rangeEnd = Math.min(visible.length, (currentPage + 1) * size);
   const cards = rows.filter((row) => featured.includes(row.currency));
 
   return (
@@ -131,7 +146,15 @@ export function RatesView() {
       <label className="plist-search fx-search">
         <Search className="icon" />
         <span className="visually-hidden">Buscar moneda o par</span>
-        <input type="search" value={query} placeholder="Buscar moneda o par" onChange={(event) => setQuery(event.target.value)} />
+        <input
+          type="search"
+          value={query}
+          placeholder="Buscar moneda o par"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(0);
+          }}
+        />
       </label>
       <section className="plist fx-board" aria-label="Tasas de cambio">
         {visible.length === 0 ? (
@@ -140,7 +163,8 @@ export function RatesView() {
             <p>Prueba con el código de la moneda, por ejemplo COP.</p>
           </div>
         ) : (
-          <div className="table-wrap">
+          <>
+            <div className="table-wrap">
             <table>
               <thead>
                 <tr>
@@ -153,7 +177,7 @@ export function RatesView() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => {
+                {pageRows.map((row) => {
                   const starred = featured.includes(row.currency);
                   return (
                     <tr key={row.currency}>
@@ -200,7 +224,57 @@ export function RatesView() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+            {visible.length > PAGE_OPTIONS[0] ? (
+            <div className="table-footer iv-pager">
+              <span>
+                {rangeStart}–{rangeEnd} de {visible.length}
+              </span>
+              <div className="iv-pager-actions">
+                {sizeOptions.length > 1 ? (
+                  <label className="visually-hidden" htmlFor="fx-page-size">
+                    Tasas por página
+                  </label>
+                ) : null}
+                {sizeOptions.length > 1 ? (
+                  <select
+                    id="fx-page-size"
+                    value={size}
+                    aria-label="Tasas por página"
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setPage(0);
+                    }}
+                  >
+                    {sizeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option} por página
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <div className="iv-pages" role="navigation" aria-label="Páginas de tasas">
+                  <button type="button" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+                    <ChevronLeft className="icon" />
+                  </button>
+                  {Array.from({ length: pageCount }, (_, index) => (
+                    <button key={index} type="button" aria-current={index === currentPage ? "page" : undefined} onClick={() => setPage(index)}>
+                      {index + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    aria-label="Página siguiente"
+                    disabled={currentPage >= pageCount - 1}
+                    onClick={() => setPage(currentPage + 1)}
+                  >
+                    <ChevronRight className="icon" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            ) : null}
+          </>
         )}
       </section>
       <div className="fx-foot">

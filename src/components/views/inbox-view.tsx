@@ -3,7 +3,7 @@
 import { BudgetMeter, purse } from "@/components/budget-meter";
 import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { amount, originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { amount, originLabel, statusClass, statusLabel, vendorDisplay } from "@/lib/format";
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
 import { inPeriod, parsePeriod } from "@/lib/stats/metrics";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
