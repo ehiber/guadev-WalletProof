@@ -20,3 +20,5 @@
 .mail-preview{width:100%;height:360px;border:1px solid var(--line);border-radius:8px;background:#fff;object-fit:contain}
 .mail-piece-reason{margin:18px 0 0;font-size:14px;line-height:1.5}
 @media(min-width:701px){.mail-list{display:flex;flex-direction:column;overflow:hidden}.mail-scroll{max-height:882px;overflow-y:auto}}
+.ticker-head .ticker-edit{background:none;border:0;padding:0;color:var(--accent);font-size:inherit;line-height:inherit;text-decoration:underline;text-underline-offset:3px;min-height:0}
+@media(max-width:700px){.ticker-head .ticker-edit{display:block;margin:4px 0;min-height:44px}}

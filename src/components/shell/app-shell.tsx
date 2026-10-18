@@ -4,6 +4,7 @@ import { ByokModal } from "@/components/byok-modal";
 import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
 import { SideNav } from "@/components/shell/side-nav";
 import { ProjectCreateDialog } from "@/components/views/project-form";
+import { RateEditorProvider, useRateEditor } from "@/components/views/rate-editor";
 import { useSession } from "@/components/session/session-provider";
 import { fxRate } from "@/lib/format";
 import { Menu, MessagesSquare, RefreshCw, RotateCcw, Shield } from "lucide-react";
@@ -14,16 +15,7 @@ import { useEffect, useState, type ReactNode } from "react";
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const session = useSession();
-  const rates = session.fxMarket.filter((rate) => rate.currency !== "USD");
-  const [tickerIndex, setTickerIndex] = useState(0);
-  const [tickerPaused, setTickerPaused] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-
-  useEffect(() => {
-    if (tickerPaused) return;
-    const timer = window.setInterval(() => setTickerIndex((current) => current + 1), 6000);
-    return () => window.clearInterval(timer);
-  }, [tickerPaused]);
 
   useEffect(() => {
     setNavOpen(false);
@@ -31,9 +23,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (pathname.startsWith("/dev")) return <>{children}</>;
 
-  const rate = rates.length > 0 ? rates[tickerIndex % rates.length] : undefined;
-
   return (
+    <RateEditorProvider>
     <>
       <a className="skip" href="#contenido">
         Saltar al contenido
@@ -55,22 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <SideNav onNavigate={() => setNavOpen(false)} />
-        <section className="ticker" aria-label="Tasas favoritas">
-          <div className="ticker-head">
-            <strong>Tus tasas</strong>
-            <Link href="/tasas">Configurar</Link>
-          </div>
-          <div id="ticker-value">
-            <span>USD / {rate?.currency}</span>
-            <strong>{rate ? fxRate(rate.rateToUsd) : "Sin tasa"}</strong>
-            <small>
-              {rate ? `${rate.date} · API` : "Sin tasa del día"}
-            </small>
-          </div>
-          <button className="text-btn" type="button" onClick={() => setTickerPaused((current) => !current)}>
-            {tickerPaused ? "Reanudar" : "Pausar"}
-          </button>
-        </section>
+        <FavoriteTicker />
         <div className="nav-bottom">
           <span className="demo-label">
             <Shield className="icon" /> Datos de ejemplo
@@ -137,5 +113,53 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ProjectCreateDialog open={session.createProjectOpen} onClose={() => session.setCreateProjectOpen(false)} />
       <OpenClawDrawer key={session.resetCount} open={session.drawerOpen} onClose={() => session.setDrawerOpen(false)} />
     </>
+    </RateEditorProvider>
+  );
+}
+
+function FavoriteTicker() {
+  const session = useSession();
+  const editor = useRateEditor();
+  const rates = session.fxMarket.filter((rate) => rate.currency !== "USD");
+  const [tickerIndex, setTickerIndex] = useState(0);
+  const [tickerPaused, setTickerPaused] = useState(false);
+  const [tickerHeld, setTickerHeld] = useState(false);
+  const rate = rates.length > 0 ? rates[tickerIndex % rates.length] : undefined;
+
+  useEffect(() => {
+    if (tickerPaused || tickerHeld || editor.editorOpen) return;
+    const timer = window.setInterval(() => setTickerIndex((current) => current + 1), 6000);
+    return () => window.clearInterval(timer);
+  }, [editor.editorOpen, tickerHeld, tickerPaused]);
+
+  return (
+    <section
+      className="ticker"
+      aria-label="Tasas favoritas"
+      onMouseEnter={() => setTickerHeld(true)}
+      onMouseLeave={() => setTickerHeld(false)}
+      onFocus={() => setTickerHeld(true)}
+      onBlur={() => setTickerHeld(false)}
+    >
+      <div className="ticker-head">
+        <strong>Tus tasas</strong>
+        <button
+          className="ticker-edit"
+          type="button"
+          disabled={!rate}
+          onClick={() => rate && editor.openForCurrency(rate.currency)}
+        >
+          {rate ? `Editar ${rate.currency}` : "Editar"}
+        </button>
+      </div>
+      <div id="ticker-value">
+        <span>USD / {rate?.currency}</span>
+        <strong>{rate ? fxRate(rate.rateToUsd) : "Sin tasa"}</strong>
+        <small>{rate ? `${rate.date} · API` : "Sin tasa del día"}</small>
+      </div>
+      <button className="text-btn" type="button" onClick={() => setTickerPaused((current) => !current)}>
+        {tickerPaused ? "Reanudar" : "Pausar"}
+      </button>
+    </section>
   );
 }

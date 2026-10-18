@@ -99,25 +99,33 @@ function fold(value: string) {
 export function SearchMenu({
   label,
   value,
+  defaultValue = "",
+  name,
   options,
   onChange,
   required = false,
+  invalid = false,
   placeholder = "Buscar",
   className = "",
 }: {
   label: string;
-  value: string;
+  value?: string;
+  defaultValue?: string;
+  name?: string;
   options: SelectOption[];
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   required?: boolean;
+  invalid?: boolean;
   placeholder?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [internal, setInternal] = useState(defaultValue);
   const root = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const selected = options.find((option) => option.value === value);
+  const current = value ?? internal;
+  const selected = options.find((option) => option.value === current);
   const needle = fold(query.trim());
   const matches = needle
     ? options.filter((option) => fold(option.label).includes(needle) || fold(option.value).includes(needle))
@@ -133,22 +141,25 @@ export function SearchMenu({
   }, [open]);
 
   function choose(next: string) {
-    onChange(next);
+    if (value === undefined) setInternal(next);
+    onChange?.(next);
     setQuery("");
     setOpen(false);
   }
 
   return (
     <div className={`vendor-suggest ${className}`.trim()} ref={root}>
+      {name ? <input type="hidden" name={name} value={current} /> : null}
       <input
         role="combobox"
         aria-label={required ? `${label} (obligatorio)` : label}
         aria-required={required || undefined}
+        aria-invalid={invalid || undefined}
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
         placeholder={placeholder}
-        value={open ? query : (selected?.label ?? "")}
+        value={open ? query : (selected?.label ?? current)}
         onClick={() => setOpen(true)}
         onFocus={() => {
           setQuery("");
@@ -184,7 +195,7 @@ export function SearchMenu({
               <button
                 type="button"
                 role="option"
-                aria-selected={option.value === value}
+                aria-selected={option.value === current}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => choose(option.value)}
               >

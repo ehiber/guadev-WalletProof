@@ -1,9 +1,11 @@
 "use client";
 
 import { useSession, type CriterionWaiver } from "@/components/session/session-provider";
-import { SelectMenu } from "@/components/ui/select-menu";
+import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
 import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { describeChecks, type CheckRow } from "@/lib/engine/criteria";
+import { currencyChoices } from "@/lib/engine/currency";
+import { COUNTRIES } from "@/lib/vendors/countries";
 import { statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import type { AuditRecord, DecisionStatus, Invoice, Project } from "@/types/blinka";
 import type { VendorCard } from "@/lib/vendors/directory";
@@ -15,6 +17,17 @@ type WorkKind = "confirm-project" | "add-vendor" | "add-bank" | "review-bank" | 
 type IssueAction = { id: WorkKind | "approve"; label: string };
 type ReviewIssue = { key: string; title: string; detail: string; actions: IssueAction[] };
 type ModalState = { kind: WorkKind } | { kind: "exception"; issue: ReviewIssue };
+
+function namedOptions(options: readonly string[], current: string) {
+  const values = current && !options.includes(current) ? [current, ...options] : [...options];
+  return values.map((item) => ({ value: item, label: item }));
+}
+
+function currencyOptions(current: string) {
+  const choices = currencyChoices().map((choice) => ({ value: choice.code, label: `${choice.code} · ${choice.name}` }));
+  if (current && !choices.some((choice) => choice.value === current)) return [{ value: current, label: current }, ...choices];
+  return choices;
+}
 
 function longDate(iso: string): string {
   const date = new Date(`${iso.slice(0, 10)}T12:00:00`);
@@ -1217,7 +1230,17 @@ export function DetailView({ id }: { id: string }) {
                     País
                     <RequiredMark />
                   </span>
-                  <input name="country" defaultValue={card?.country || "Colombia"} aria-required="true" aria-invalid={Boolean(missing.country)} />
+                  <SearchMenu
+                    required
+                    invalid={Boolean(missing.country)}
+                    label="País"
+                    name="country"
+                    placeholder="Buscar país"
+                    className="opens-up"
+                    defaultValue={card?.country || "Colombia"}
+                    options={namedOptions(COUNTRIES, card?.country || "Colombia")}
+                    onChange={() => clearMissing("country")}
+                  />
                   {missing.country ? <small className="field-error">{missing.country}</small> : null}
                 </label>
                 <label className={`field${missing.identifier ? " invalid" : ""}`}>
@@ -1233,7 +1256,17 @@ export function DetailView({ id }: { id: string }) {
                     Moneda
                     <RequiredMark />
                   </span>
-                  <input name="currency" defaultValue={invoice.currency} aria-required="true" aria-invalid={Boolean(missing.currency)} />
+                  <SearchMenu
+                    required
+                    invalid={Boolean(missing.currency)}
+                    label="Moneda"
+                    name="currency"
+                    placeholder="Buscar moneda"
+                    className="opens-up"
+                    defaultValue={invoice.currency}
+                    options={currencyOptions(invoice.currency)}
+                    onChange={() => clearMissing("currency")}
+                  />
                   {missing.currency ? <small className="field-error">{missing.currency}</small> : null}
                 </label>
               </div>
@@ -1277,7 +1310,16 @@ export function DetailView({ id }: { id: string }) {
                     Moneda
                     <RequiredMark />
                   </span>
-                  <input name="currency" defaultValue={invoice.currency} aria-required="true" aria-invalid={Boolean(missing.currency)} />
+                  <SearchMenu
+                    required
+                    invalid={Boolean(missing.currency)}
+                    label="Moneda"
+                    name="currency"
+                    placeholder="Buscar moneda"
+                    defaultValue={invoice.currency}
+                    options={currencyOptions(invoice.currency)}
+                    onChange={() => clearMissing("currency")}
+                  />
                   {missing.currency ? <small className="field-error">{missing.currency}</small> : null}
                 </label>
                 <label className={`field${missing.total ? " invalid" : ""}`}>
@@ -1593,7 +1635,7 @@ function Acceptance({
       </label>
       {invalid ? <p className="field-error">{invalid}</p> : null}
       <label className="field">
-        <span>Comentario adicional (opcional)</span>
+        <span>Comentario adicional</span>
         <textarea rows={3} value={comment} placeholder="Añade contexto si lo necesitas" onChange={(event) => onComment(event.target.value)} />
       </label>
       <p className="id-hint">Añadir contexto ayuda a entender esta decisión cuando se revise más adelante.</p>

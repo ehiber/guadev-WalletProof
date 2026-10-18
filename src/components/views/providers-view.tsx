@@ -122,6 +122,12 @@ function ProjectTags({
 }
 
 const SERVICE_OPTIONS = VENDOR_CATEGORIES.filter((item) => item !== "Por confirmar");
+const ACCOUNT_TYPES = ["Corriente", "Ahorros", "Internacional"] as const;
+
+function withCurrent(options: readonly string[], current: string) {
+  const values = current && !options.includes(current) ? [current, ...options] : [...options];
+  return values.map((item) => ({ value: item, label: item }));
+}
 const ASSIGN_OPTIONS = 4;
 
 function projectMatches(name: string, code: string, query: string) {
@@ -820,7 +826,13 @@ export function ProviderEditor({ id }: { id: string }) {
           <div className="vendor-pair">
             <label className="field">
               <span>País</span>
-              <input value={country} onChange={(event) => setCountry(event.target.value)} />
+              <SearchMenu
+                label="País"
+                placeholder="Buscar país"
+                value={country}
+                options={withCurrent(COUNTRIES, country)}
+                onChange={setCountry}
+              />
             </label>
             <label className="field">
               <span>Identificación fiscal / legal</span>
@@ -1284,10 +1296,7 @@ export function ProviderEditor({ id }: { id: string }) {
             {bankMissing.currency ? <small className="field-error">{bankMissing.currency}</small> : null}
           </label>
           {(
-            [
-              ["identifier", "Identificador", bankForm.identifier, true],
-              ["type", "Tipo de cuenta", bankForm.type, false],
-            ] as const
+            [["identifier", "Identificador", bankForm.identifier, true]] as const
           ).map(([key, label, value, required]) => (
             <label key={key} className={`field${bankMissing[key] ? " invalid" : ""}`}>
               <span>
@@ -1305,6 +1314,16 @@ export function ProviderEditor({ id }: { id: string }) {
               {bankMissing[key] ? <small className="field-error">{bankMissing[key]}</small> : null}
             </label>
           ))}
+          <label className="field">
+            <span>Tipo de cuenta</span>
+            <SelectMenu
+              label="Tipo de cuenta"
+              placeholder="Elige un tipo"
+              value={bankForm.type}
+              options={withCurrent(ACCOUNT_TYPES, bankForm.type)}
+              onChange={(type) => setBankForm((current) => ({ ...current, type }))}
+            />
+          </label>
           <p>La cuenta queda en el borrador hasta que guardes la ficha.</p>
           <div className="button-row">
             <button className="btn" type="button" onClick={() => setEditing(null)}>
