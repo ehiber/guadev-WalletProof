@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "@/components/session/session-provider";
+import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
 import { ProjectNavList } from "@/components/shell/project-nav-list";
 import { orderedProjects, sidebarProjects, usesFavorites, type NavSection } from "@/lib/mock-data/nav";
 import {
@@ -18,8 +18,8 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 
 const GROUPS: Array<{
   id: string;
@@ -41,8 +41,10 @@ const GROUPS: Array<{
 
 export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const params = useSearchParams();
   const session = useSession();
+  const invoiceInput = useRef<HTMLInputElement>(null);
   const activeProject = pathname.startsWith("/proyectos/") ? pathname.split("/")[2] : "";
   const rulesProject = pathname.startsWith("/reglas") ? params.get("proyecto") : null;
   const statsProject = pathname.startsWith("/estadisticas") ? params.get("proyecto") : null;
@@ -135,8 +137,46 @@ export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href={item.href} aria-current={item.match(pathname) ? "page" : undefined} onClick={onNavigate}>
                 <Icon className="icon" />
                 <span>{item.label}</span>
-                {item.id === "inbox" && session.reviewCount > 0 ? <span className="nav-count">{session.reviewCount}</span> : null}
               </Link>
+              {item.id === "inbox" && session.reviewCount > 0 ? (
+                <Link
+                  className="nav-count"
+                  href="/?estado=revision&alcance=todos"
+                  aria-label={`${session.reviewCount} por revisar en todos los proyectos`}
+                  style={{ "--heat": Math.min(1, session.reviewCount / 10) } as CSSProperties}
+                  onClick={onNavigate}
+                >
+                  {session.reviewCount}
+                </Link>
+              ) : null}
+              {item.id === "inbox" ? (
+                <>
+                  <button
+                    className="ws-expand"
+                    type="button"
+                    aria-label="Añadir factura"
+                    disabled={session.running}
+                    onClick={() => invoiceInput.current?.click()}
+                  >
+                    <Plus className="icon" />
+                  </button>
+                  <input
+                    ref={invoiceInput}
+                    className="visually-hidden"
+                    type="file"
+                    multiple
+                    accept={INVOICE_FILE_ACCEPT}
+                    aria-label="Seleccionar facturas en PDF, JPG, PNG, WEBP o GIF"
+                    onChange={(event) => {
+                      const selected = [...(event.target.files ?? [])];
+                      event.target.value = "";
+                      if (selected.length === 0) return;
+                      router.push("/");
+                      void session.uploadMany(selected);
+                    }}
+                  />
+                </>
+              ) : null}
               {item.id === "projects" ? (
                 <button className="ws-expand" type="button" aria-label="Crear proyecto" onClick={() => session.setCreateProjectOpen(true)}>
                   <Plus className="icon" />
