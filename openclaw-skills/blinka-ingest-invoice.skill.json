@@ -1,28 +1,25 @@
 {
   "name": "blinka-ingest-invoice",
-  "version": "2.0.0",
-  "description": "Entrega una foto, un PDF o un texto de cobro sintético a Blinka Guard. No aprueba, no rechaza y no calcula montos.",
-  "webhook": {
-    "method": "POST",
-    "url": "${BLINKA_WEBHOOK_URL}",
-    "headers": {
-      "content-type": "application/json",
-      "x-openclaw-secret": "${BLINKA_WEBHOOK_SECRET}"
-    },
-    "body": {
-      "kind": "ingest",
-      "payload": {
-        "channel": "whatsapp",
-        "text": "{{text}}",
-        "media": "{{media}}",
-        "mime": "{{mime}}",
-        "filename": "{{filename}}"
-      }
+  "version": "3.0.0",
+  "description": "Entrega una foto, un PDF o un texto de cobro sintético a Blinka Guard. No aprueba, no rechaza y no calcula montos. El secreto lo expande el shell, no el modelo.",
+  "delivery": "curl",
+  "command": "curl -sS -X POST \"$BLINKA_WEBHOOK_URL\" -H \"content-type: application/json\" -H \"x-openclaw-secret: $BLINKA_WEBHOOK_SECRET\" --data-binary @invoice.json",
+  "bodyFile": {
+    "kind": "ingest",
+    "payload": {
+      "channel": "whatsapp",
+      "text": "{{text}}",
+      "media": "{{media}}",
+      "mime": "{{mime}}",
+      "filename": "{{filename}}"
     }
   },
   "rules": [
-    "Si no hay archivo, omite media, mime y filename.",
-    "El archivo no puede pasar de 4 MB.",
+    "No uses la herramienta HTTP para esta entrega.",
+    "Escribe el JSON en invoice.json. El secreto no va en ese archivo.",
+    "Ejecuta el curl tal cual, con $BLINKA_WEBHOOK_URL y $BLINKA_WEBHOOK_SECRET. No sustituyas esas variables por su valor.",
+    "Si BLINKA_WEBHOOK_SECRET está vacío, no llames y di que falta la variable en el entorno del servicio.",
+    "Si no hay archivo, omite media, mime y filename. El archivo no puede pasar de 4 MB.",
     "Si el webhook responde 200, contesta solo: Recibido. Quedó en la bandeja como <invoice.id>. Si no hay id, di solo que quedó en la bandeja.",
     "Si el webhook falla, di que no se pudo entregar y pide reenviar el archivo.",
     "No expliques reglas, estados ni montos."
