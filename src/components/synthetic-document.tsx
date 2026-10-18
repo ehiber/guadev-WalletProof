@@ -1,13 +1,13 @@
 import { renderInvoiceSvg } from "@/lib/demo-document";
 import type { Invoice } from "@/types/blinka";
 
-function usesFilePreview(path: string): boolean {
+export function hasFilePreview(path: string): boolean {
   return path.startsWith("blob:") || path.startsWith("data:") || path.startsWith("/api/documents/");
 }
 
 export function DocumentThumb({ invoice }: { invoice: Invoice }) {
   const path = invoice.documentPath;
-  if (!usesFilePreview(path)) return null;
+  if (!hasFilePreview(path)) return null;
   if (invoice.documentKind === "pdf") {
     return (
       <iframe
@@ -24,7 +24,7 @@ export function DocumentThumb({ invoice }: { invoice: Invoice }) {
 
 export function SyntheticDocument({ invoice }: { invoice: Invoice }) {
   const path = invoice.documentPath;
-  if (usesFilePreview(path)) {
+  if (hasFilePreview(path)) {
     if (invoice.documentKind === "pdf") {
       return <iframe title={invoice.id} src={path} className="h-80 w-full rounded-lg border border-[#e6e8ee] bg-white" />;
     }

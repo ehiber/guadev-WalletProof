@@ -1,4 +1,5 @@
 import { buildAuditHash, decideStatus, evaluateHardRules } from "@/lib/engine/2-hard-rules";
+import type { FxOverride } from "@/lib/engine/fx-overrides";
 import type { AuditRecord, CompanyRules, Invoice, JevResult, PriorDocument } from "@/types/blinka";
 
 function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string {
@@ -36,8 +37,9 @@ export function evaluateInvoice(
   priors: PriorDocument[],
   currentPeriodSpentUsd: number,
   jev: JevResult | null = invoice.jevSnapshot,
+  overrides: FxOverride[] = [],
 ): AuditRecord {
-  const { hard, fxSnapshot } = evaluateHardRules(invoice, rules, priors, currentPeriodSpentUsd);
+  const { hard, fxSnapshot } = evaluateHardRules(invoice, rules, priors, currentPeriodSpentUsd, overrides);
   const jevResult = hard.passed ? jev : null;
   const finalStatus = decideStatus(hard, jevResult, rules);
   const rulesSnapshot: CompanyRules = { ...rules };
@@ -57,13 +59,13 @@ export function evaluateInvoice(
   };
 }
 
-export function evaluateBatch(invoices: Invoice[], rules: CompanyRules): AuditRecord[] {
+export function evaluateBatch(invoices: Invoice[], rules: CompanyRules, overrides: FxOverride[] = []): AuditRecord[] {
   const priors: PriorDocument[] = [];
   let spent = 0;
   const records: AuditRecord[] = [];
 
   for (const invoice of invoices) {
-    const record = evaluateInvoice(invoice, rules, priors, spent);
+    const record = evaluateInvoice(invoice, rules, priors, spent, invoice.jevSnapshot, overrides);
     records.push(record);
     priors.push({
       invoiceNumber: invoice.invoiceNumber,

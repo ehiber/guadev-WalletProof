@@ -5,6 +5,7 @@ import type { GmailStatus, MailLogStatus } from "@/lib/inbound/types";
 function statusText(status: MailLogStatus): string {
   if (status === "ingested") return "Factura";
   if (status === "discarded") return "Descartado";
+  if (status === "pending") return "Pendiente";
   return "Error";
 }
 

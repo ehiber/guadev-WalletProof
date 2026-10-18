@@ -77,7 +77,12 @@ const VENDOR_INITIALS: Record<string, string> = {
 
 export function vendorInitials(vendorId: string, name: string): string {
   if (VENDOR_INITIALS[vendorId]) return VENDOR_INITIALS[vendorId];
-  const letters = name.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, "").slice(0, 2).toUpperCase();
+  const words = name.split(/\s+/).filter((part) => /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(part));
+  const letters = words
+    .slice(0, 2)
+    .map((part) => part.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, "")[0] ?? "")
+    .join("")
+    .toUpperCase();
   return letters || "NV";
 }
 

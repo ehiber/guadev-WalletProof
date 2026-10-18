@@ -93,7 +93,7 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
       label: "Tasa FX auditada",
       pass: hard.fxValid,
       detail: record.fxSnapshot
-        ? `1 USD = ${record.fxSnapshot.rateToUsd} ${record.fxSnapshot.currency} · ${record.fxSnapshot.date}`
+        ? `${record.fxSnapshot.source === "Tasa modificada" ? "Tasa modificada · " : ""}1 USD = ${record.fxSnapshot.rateToUsd} ${record.fxSnapshot.currency} · ${record.fxSnapshot.date}`
         : `No hay tasa para ${invoice.currency} el ${invoice.issueDate}.`,
       action: hard.fxValid ? null : "PERMANENT",
     },

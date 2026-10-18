@@ -4,10 +4,13 @@ import type { GmailStatus, MailLogEntry } from "@/lib/inbound/types";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { arrivedInvoices, sessionRules } from "@/lib/session-inbox";
 
-const MAX_UNREAD = 5;
+const MAX_LIST = 20;
+const MAX_NEW = 5;
 const LOG_CAP = 30;
 const TEXT_CAP = 4000;
 const SIGNATURE_BYTES = 30 * 1024;
+const LABEL_INGESTED = "blinka-ingested";
+const LABEL_SKIPPED = "blinka-omitido";
 
 type GmailConfig = {
   user: string;
@@ -38,13 +41,16 @@ type ParsedMail = {
   skipped: string[];
 };
 
+type LabelCache = { ingested: string | null; skipped: string | null };
+
 type GmailMemory = {
   seen: Set<string>;
-  attempts: Map<string, number>;
+  labeled: Set<string>;
   messages: MailLogEntry[];
   lastPollAt: string | null;
   lastError: string | null;
   inflight: Promise<GmailStatus> | null;
+  labelIds: LabelCache;
 };
 
 declare global {
@@ -52,8 +58,17 @@ declare global {
 }
 
 function memory(): GmailMemory {
-  globalThis.blinkaGmail ??= { seen: new Set(), attempts: new Map(), messages: [], lastPollAt: null, lastError: null, inflight: null };
-  globalThis.blinkaGmail.attempts ??= new Map();
+  globalThis.blinkaGmail ??= {
+    seen: new Set(),
+    labeled: new Set(),
+    messages: [],
+    lastPollAt: null,
+    lastError: null,
+    inflight: null,
+    labelIds: { ingested: null, skipped: null },
+  };
+  globalThis.blinkaGmail.labeled ??= new Set();
+  globalThis.blinkaGmail.labelIds ??= { ingested: null, skipped: null };
   return globalThis.blinkaGmail;
 }
 
@@ -89,11 +104,6 @@ export function textLooksLikePayable(text: string): boolean {
   return money.test(text) || labeled.test(text);
 }
 
-function pushLog(entry: MailLogEntry) {
-  const current = memory();
-  current.messages.unshift(entry);
-  if (current.messages.length > LOG_CAP) current.messages.length = LOG_CAP;
-}
 
 function decodeBase64Url(value: string): Uint8Array {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -134,8 +144,9 @@ function payableMime(mime: string, filename: string): string | null {
 function isSignature(part: GmailPart, size: number): boolean {
   const mime = (part.mimeType ?? "").toLowerCase();
   if (!mime.startsWith("image/")) return false;
-  if (!(part.filename ?? "").trim()) return true;
-  return /inline/i.test(header(part, "content-disposition")) && size > 0 && size < SIGNATURE_BYTES;
+  if ((part.filename ?? "").trim()) return false;
+  if (size <= 0) return false;
+  return size < SIGNATURE_BYTES;
 }
 
 function clip(current: string, next: string): string {
@@ -175,10 +186,58 @@ async function gmailGet(token: string, path: string): Promise<unknown> {
   return response.json();
 }
 
-async function listUnread(token: string): Promise<string[]> {
-  const query = new URLSearchParams({ q: "is:unread", maxResults: String(MAX_UNREAD) });
+async function gmailSend(token: string, path: string, body: unknown): Promise<unknown> {
+  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`Gmail respondió ${response.status}.`);
+  return response.json().catch(() => ({}));
+}
+
+async function createLabel(token: string, name: string): Promise<string> {
+  const created = (await gmailSend(token, "labels", {
+    name,
+    labelListVisibility: "labelHide",
+    messageListVisibility: "hide",
+  })) as { id?: string };
+  if (!created.id) throw new Error("No se pudo crear la etiqueta de Gmail.");
+  return created.id;
+}
+
+async function ensureLabels(token: string): Promise<{ ingested: string; skipped: string }> {
+  const cache = memory().labelIds;
+  if (cache.ingested && cache.skipped) return { ingested: cache.ingested, skipped: cache.skipped };
+  const listed = (await gmailGet(token, "labels")) as { labels?: Array<{ id?: string; name?: string }> };
+  const find = (name: string) => listed.labels?.find((item) => item.name === name)?.id ?? null;
+  const ingested = find(LABEL_INGESTED) ?? (await createLabel(token, LABEL_INGESTED));
+  const skipped = find(LABEL_SKIPPED) ?? (await createLabel(token, LABEL_SKIPPED));
+  cache.ingested = ingested;
+  cache.skipped = skipped;
+  return { ingested, skipped };
+}
+
+async function listRecent(token: string): Promise<string[]> {
+  const query = new URLSearchParams({ q: "in:inbox newer_than:2d", maxResults: String(MAX_LIST) });
   const body = (await gmailGet(token, `messages?${query.toString()}`)) as { messages?: Array<{ id?: string }> };
   return (body.messages ?? []).map((item) => item.id).filter((id): id is string => Boolean(id));
+}
+
+type MailMeta = { from: string; subject: string; at: string; labelIds: string[] };
+
+async function readMeta(token: string, id: string): Promise<MailMeta> {
+  const body = (await gmailGet(
+    token,
+    `messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+  )) as { internalDate?: string; labelIds?: string[]; payload?: GmailPart };
+  const millis = Number(body.internalDate);
+  return {
+    from: header(body.payload ?? {}, "from") || "remitente desconocido",
+    subject: header(body.payload ?? {}, "subject") || "Sin asunto",
+    at: Number.isFinite(millis) ? new Date(millis).toISOString() : new Date().toISOString(),
+    labelIds: body.labelIds ?? [],
+  };
 }
 
 async function attachmentBytes(token: string, messageId: string, attachmentId: string): Promise<Uint8Array> {
@@ -205,8 +264,9 @@ async function collectParts(token: string, messageId: string, part: GmailPart, b
       if (bytes.byteLength === 0 && part.body?.attachmentId) {
         bytes = await attachmentBytes(token, messageId, part.body.attachmentId);
       }
+      const tinyUnnamed = !filename && normalized.startsWith("image/") && bytes.byteLength > 0 && bytes.byteLength < SIGNATURE_BYTES;
       if (bytes.byteLength > MAX_DOCUMENT_BYTES) bag.skipped.push(filename || normalized);
-      else if (bytes.byteLength > 0) {
+      else if (bytes.byteLength > 0 && !tinyUnnamed) {
         bag.files.push({ filename: filename || defaultName(normalized), mime: normalized, bytes });
       }
     }
@@ -232,18 +292,22 @@ async function readMessage(token: string, id: string): Promise<ParsedMail> {
   return parsed;
 }
 
-async function markRead(token: string, id: string) {
-  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}/modify`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+type HandleResult = {
+  entry: MailLogEntry;
+  stop: string | null;
+  label: "ingested" | "skipped" | null;
+};
+
+async function markProcessed(token: string, id: string, labelId: string) {
+  await gmailSend(token, `messages/${encodeURIComponent(id)}/modify`, {
+    removeLabelIds: ["UNREAD"],
+    addLabelIds: [labelId],
   });
-  if (!response.ok) throw new Error(`Gmail respondió ${response.status}.`);
 }
 
-async function markReadSafe(token: string, id: string) {
+async function markProcessedSafe(token: string, id: string, labelId: string) {
   try {
-    await markRead(token, id);
+    await markProcessed(token, id, labelId);
   } catch {
     return;
   }
@@ -253,17 +317,24 @@ function messageText(parsed: ParsedMail): string {
   return [`De: ${parsed.from}`, `Asunto: ${parsed.subject}`, parsed.text].filter(Boolean).join("\n");
 }
 
-async function handleMessage(token: string, id: string, ip: string): Promise<string | null> {
+function shell(id: string, meta: MailMeta, status: MailLogEntry["status"], reason: string): MailLogEntry {
+  return {
+    id,
+    at: meta.at,
+    from: meta.from,
+    subject: meta.subject,
+    attachments: [],
+    status,
+    reason,
+    invoiceIds: [],
+  };
+}
+
+async function handleMessage(token: string, id: string, ip: string): Promise<HandleResult> {
   const current = memory();
-  if (current.seen.has(id)) {
-    const prior = current.messages.find((item) => item.id === id);
-    const attempts = current.attempts.get(id) ?? 1;
-    if (!prior || prior.status === "ingested" || attempts >= 2) {
-      await markReadSafe(token, id);
-      return null;
-    }
-    current.attempts.set(id, attempts + 1);
-    current.seen.delete(id);
+  const prior = current.messages.find((item) => item.id === id);
+  if (current.seen.has(id) && prior && prior.status !== "pending") {
+    return { entry: prior, stop: null, label: null };
   }
   const parsed = await readMessage(token, id);
   const text = messageText(parsed);
@@ -271,10 +342,12 @@ async function handleMessage(token: string, id: string, ip: string): Promise<str
   const attachments = parsed.files.map((file) => file.filename);
   if (parsed.files.length === 0 && !textLooksLikePayable(text)) {
     current.seen.add(id);
-    await markReadSafe(token, id);
     const reason = parsed.skipped.length > 0 ? "El archivo supera 4 MB." : "Sin adjunto de cobro ni monto.";
-    pushLog({ id, at, from: parsed.from, subject: parsed.subject, attachments, status: "discarded", reason, invoiceIds: [] });
-    return null;
+    return {
+      entry: { id, at, from: parsed.from, subject: parsed.subject, attachments, status: "discarded", reason, invoiceIds: [] },
+      stop: null,
+      label: "skipped",
+    };
   }
 
   const targets: Array<PayableFile | null> = parsed.files.length > 0 ? parsed.files : [null];
@@ -287,8 +360,11 @@ async function handleMessage(token: string, id: string, ip: string): Promise<str
     const limited = takeLiveSlot(ip);
     if (limited) {
       if (!modelAttempted) {
-        pushLog({ id, at, from: parsed.from, subject: parsed.subject, attachments, status: "error", reason: limited, invoiceIds });
-        return limited;
+        return {
+          entry: { id, at, from: parsed.from, subject: parsed.subject, attachments, status: "pending", reason: limited, invoiceIds },
+          stop: limited,
+          label: null,
+        };
       }
       reasons.push(limited);
       break;
@@ -317,19 +393,22 @@ async function handleMessage(token: string, id: string, ip: string): Promise<str
     }
   }
 
-  current.seen.add(id);
-  await markReadSafe(token, id);
-  pushLog({
-    id,
-    at,
-    from: parsed.from,
-    subject: parsed.subject,
-    attachments,
-    status: invoiceIds.length > 0 ? "ingested" : failed ? "error" : "discarded",
-    reason: reasons.length > 0 ? reasons.join(" ") : undefined,
-    invoiceIds,
-  });
-  return null;
+  const status = invoiceIds.length > 0 ? "ingested" : failed ? "error" : "discarded";
+  if (status !== "error") current.seen.add(id);
+  return {
+    entry: {
+      id,
+      at,
+      from: parsed.from,
+      subject: parsed.subject,
+      attachments,
+      status,
+      reason: reasons.length > 0 ? reasons.join(" ") : undefined,
+      invoiceIds,
+    },
+    stop: null,
+    label: status === "ingested" ? "ingested" : status === "discarded" ? "skipped" : null,
+  };
 }
 
 async function runPoll(ip: string): Promise<GmailStatus> {
@@ -342,12 +421,50 @@ async function runPoll(ip: string): Promise<GmailStatus> {
   }
   try {
     const token = await accessToken(config);
-    const ids = await listUnread(token);
+    const labels = await ensureLabels(token);
+    const ids = await listRecent(token);
+    const byId = new Map(current.messages.map((item) => [item.id, item]));
+    const next: MailLogEntry[] = [];
+    let fresh = 0;
     let stop: string | null = null;
     for (const id of ids) {
-      if (stop) break;
-      stop = await handleMessage(token, id, ip);
+      const prior = byId.get(id);
+      if (prior && prior.status !== "pending") {
+        next.push(prior);
+        if ((prior.status === "ingested" || prior.status === "discarded") && !current.labeled.has(id)) {
+          await markProcessedSafe(token, id, prior.status === "ingested" ? labels.ingested : labels.skipped);
+          current.labeled.add(id);
+        }
+        continue;
+      }
+      const meta = await readMeta(token, id);
+      if (meta.labelIds.includes(labels.ingested)) {
+        next.push(shell(id, meta, "ingested", "Ya se leyó en un sondeo anterior."));
+        current.labeled.add(id);
+        continue;
+      }
+      if (meta.labelIds.includes(labels.skipped)) {
+        next.push(shell(id, meta, "discarded", "Se omitió en un sondeo anterior."));
+        current.labeled.add(id);
+        continue;
+      }
+      if (stop || fresh >= MAX_NEW) {
+        next.push(shell(id, meta, "pending", stop ?? "En espera del próximo sondeo."));
+        continue;
+      }
+      fresh += 1;
+      try {
+        const result = await handleMessage(token, id, ip);
+        next.push(result.entry);
+        if (result.label === "ingested") await markProcessedSafe(token, id, labels.ingested);
+        if (result.label === "skipped") await markProcessedSafe(token, id, labels.skipped);
+        if (result.label) current.labeled.add(id);
+        if (result.stop) stop = result.stop;
+      } catch (error) {
+        next.push(shell(id, meta, "error", error instanceof Error ? error.message : "No se pudo leer el correo."));
+      }
     }
+    current.messages = next.slice(0, LOG_CAP);
     current.lastError = stop;
   } catch (error) {
     current.lastError = error instanceof Error ? error.message : "No se pudo leer Gmail.";

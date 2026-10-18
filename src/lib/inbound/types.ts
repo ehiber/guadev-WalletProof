@@ -1,4 +1,4 @@
-export type MailLogStatus = "ingested" | "discarded" | "error";
+export type MailLogStatus = "ingested" | "discarded" | "error" | "pending";
 
 export interface MailLogEntry {
   id: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
+import { hasFilePreview, SyntheticDocument } from "@/components/synthetic-document";
 import type { MailLogEntry, MailLogStatus } from "@/lib/inbound/types";
 import { RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
@@ -42,7 +43,7 @@ export function MailView() {
         <div>
           <h1>Bandeja de correos</h1>
           <p>
-            {connected ? mail?.address : mounted ? "Sin buzón configurado" : "Cargando el sondeo"}. El sondeo real es el inbound de Gmail. Esta bandeja no redacta ni envía mensajes.
+            {connected ? mail?.address : mounted ? "Sin buzón configurado" : "Cargando el sondeo"}. Se listan los mensajes de los últimos dos días. Esta bandeja no redacta ni envía mensajes.
           </p>
         </div>
         <div className="heading-actions">
@@ -116,10 +117,15 @@ export function MailView() {
 function statusLabel(status: MailLogStatus): string {
   if (status === "ingested") return "Ingresado";
   if (status === "discarded") return "Descartado";
+  if (status === "pending") return "Pendiente";
   return "Error";
 }
 
 function Reader({ message }: { message: MailLogEntry }) {
+  const session = useSession();
+  const previews = message.invoiceIds
+    .map((id) => session.invoices.find((invoice) => invoice.id === id))
+    .filter((invoice) => invoice && hasFilePreview(invoice.documentPath));
   return (
     <>
       <div className="section-heading">
@@ -143,6 +149,7 @@ function Reader({ message }: { message: MailLogEntry }) {
         <small>Entrada de Gmail · {statusLabel(message.status)}</small>
         <p>{message.reason || "El sondeo no dejó un motivo adicional."}</p>
         {message.attachments.length > 0 ? <p>Adjuntos: {message.attachments.join(", ")}</p> : null}
+        {previews.map((invoice) => (invoice ? <SyntheticDocument key={invoice.id} invoice={invoice} /> : null))}
       </article>
     </>
   );

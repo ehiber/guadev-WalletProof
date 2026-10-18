@@ -1,21 +1,30 @@
 {
   "name": "blinka-ingest-invoice",
-  "version": "1.0.0",
-  "description": "Envía una foto, PDF o texto de cobro sintético desde WhatsApp o Telegram y dispara el pipeline de Blinka Guard.",
+  "version": "2.0.0",
+  "description": "Entrega una foto, un PDF o un texto de cobro sintético a Blinka Guard. No aprueba, no rechaza y no calcula montos.",
   "webhook": {
     "method": "POST",
-    "path": "/api/webhooks/openclaw",
+    "url": "${BLINKA_WEBHOOK_URL}",
     "headers": {
-      "x-openclaw-secret": "${OPENCLAW_WEBHOOK_SECRET}"
+      "content-type": "application/json",
+      "x-openclaw-secret": "${BLINKA_WEBHOOK_SECRET}"
     },
     "body": {
       "kind": "ingest",
-      "invoiceId": "{{invoiceId}}",
       "payload": {
-        "channel": "{{channel}}",
+        "channel": "whatsapp",
         "text": "{{text}}",
-        "media": "{{media}}"
+        "media": "{{media}}",
+        "mime": "{{mime}}",
+        "filename": "{{filename}}"
       }
     }
-  }
+  },
+  "rules": [
+    "Si no hay archivo, omite media, mime y filename.",
+    "El archivo no puede pasar de 4 MB.",
+    "Si el webhook responde 200, contesta solo: Recibido. Quedó en la bandeja como <invoice.id>. Si no hay id, di solo que quedó en la bandeja.",
+    "Si el webhook falla, di que no se pudo entregar y pide reenviar el archivo.",
+    "No expliques reglas, estados ni montos."
+  ]
 }

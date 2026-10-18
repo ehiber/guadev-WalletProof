@@ -1,7 +1,7 @@
 import { criterionEnabled, criterionOf } from "@/lib/engine/criteria";
+import { resolveFx, type FxOverride } from "@/lib/engine/fx-overrides";
 import { sha256Hex } from "@/lib/engine/sha256";
 import { findVendor } from "@/lib/mock-data/company-rules";
-import { lookupFx } from "@/lib/mock-data/fx-ledger";
 import type {
   CompanyRules,
   CriterionAction,
@@ -23,6 +23,7 @@ export function evaluateHardRules(
   rules: CompanyRules,
   priors: PriorDocument[],
   currentPeriodSpentUsd: number,
+  overrides: FxOverride[] = [],
 ): { hard: HardRulesResult; fxSnapshot: FxRate | null } {
   if (invoice.extractionValid === false) {
     const isExactDuplicate = priors.some(
@@ -49,7 +50,7 @@ export function evaluateHardRules(
     };
   }
 
-  const fxSnapshot = lookupFx(invoice.issueDate, invoice.currency);
+  const fxSnapshot = resolveFx(invoice, overrides);
   const fxValid = fxSnapshot !== null && fxSnapshot.rateToUsd > 0;
   const totalPayableUsd = fxValid ? toUsd(invoice.totalPayable, fxSnapshot.rateToUsd) : 0;
   const isExactDuplicate = priors.some(

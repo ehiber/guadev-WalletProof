@@ -4,11 +4,13 @@ import { cloneRules, normalizeRules } from "@/lib/engine/criteria";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import { emptyLayer, normalizeKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { evaluateBatch } from "@/lib/engine/pipeline";
+import type { FxOverride } from "@/lib/engine/fx-overrides";
 import type { GmailStatus } from "@/lib/inbound/types";
 import { DEFAULT_RULES, VENDORS } from "@/lib/mock-data/company-rules";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { recordsToCsv } from "@/lib/utils/export-csv";
+import { maskAccount, seedVendorCards, type VendorCard } from "@/lib/vendors/directory";
 import type { AuditRecord, CompanyRules, DecisionStatus, Invoice, Vendor } from "@/types/blinka";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
@@ -71,6 +73,8 @@ type SessionValue = {
   mailBusy: boolean;
   keys: ByokKeys;
   vendors: VendorProfile[];
+  vendorCards: VendorCard[];
+  saveVendorCard: (card: VendorCard) => void;
   autonomous: AuditRecord[];
   improper: AuditRecord[];
   latency: number;
@@ -92,6 +96,9 @@ type SessionValue = {
   notifyOpenClaw: (invoice: Invoice, record: AuditRecord) => Promise<void>;
   saveKeys: (next: ByokKeys) => void;
   decide: (invoiceId: string, decision: "APPROVED" | "BLOCKED", note: string) => void;
+  fxOverrides: FxOverride[];
+  saveFxOverride: (override: FxOverride) => void;
+  removeFxOverride: (id: string) => void;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -114,12 +121,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [showRaw, setShowRaw] = useState(false);
   const [mail, setMail] = useState<GmailStatus | null>(null);
   const [mailBusy, setMailBusy] = useState(false);
+  const [vendorCards, setVendorCards] = useState<VendorCard[]>(() => seedVendorCards());
+  const [fxOverrides, setFxOverrides] = useState<FxOverride[]>([]);
   const storedKeys = useSyncExternalStore(subscribeKeys, readStoredKeys, () => "");
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
   const previewUrls = useRef<string[]>([]);
   const seenArrivals = useRef(new Set<string>());
   const pullGeneration = useRef(0);
-  const records = useMemo(() => evaluateBatch(invoices, rules), [invoices, rules]);
+  const records = useMemo(() => evaluateBatch(invoices, rules, fxOverrides), [fxOverrides, invoices, rules]);
 
   const statusOf = useCallback(
     (record: AuditRecord): DecisionStatus => {
@@ -160,11 +169,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const line = invoice.lineItems.find((item) => /cuenta/i.test(item)) ?? `Cuenta solicitada · ${invoice.id}`;
       extras[invoice.vendorId] = [...(extras[invoice.vendorId] ?? []), line];
     }
-    return VENDORS.map((vendor) => ({
-      ...vendor,
-      accounts: [`••••${vendor.bankAccountLast4}`, ...(extras[vendor.id] ?? [])],
-    }));
-  }, [human, invoices, records]);
+    return vendorCards.map((card) => {
+      const base = VENDORS.find((vendor) => vendor.id === card.id);
+      const vendor: Vendor = base ?? {
+        id: card.id,
+        legalName: card.legal,
+        country: card.country,
+        active: card.status === "authorized",
+        contractSummary: card.service,
+        costCenter: card.costCenter,
+        bankAccountLast4: card.bankAccounts[0]?.identifier.replace(/\D/g, "").slice(-4) || "0000",
+      };
+      const registered = card.bankAccounts[0] ? maskAccount(card.bankAccounts[0].identifier) : "Sin cuenta";
+      return { ...vendor, active: card.status === "authorized", accounts: [registered, ...(extras[card.id] ?? [])] };
+    });
+  }, [human, invoices, records, vendorCards]);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,6 +342,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setHuman({});
     setLive({});
     setLiveError(null);
+    setVendorCards(seedVendorCards());
+    setFxOverrides([]);
     void fetch("/api/invoices", { method: "DELETE" });
     void fetch("/api/webhooks/openclaw", {
       method: "DELETE",
@@ -429,6 +450,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setByokOpen(false);
   }, []);
 
+  const saveVendorCard = useCallback((card: VendorCard) => {
+    setVendorCards((current) => {
+      const index = current.findIndex((item) => item.id === card.id);
+      if (index < 0) return [...current, card];
+      const next = [...current];
+      next[index] = card;
+      return next;
+    });
+  }, []);
+
+  const saveFxOverride = useCallback((override: FxOverride) => {
+    setFxOverrides((current) => {
+      const index = current.findIndex(
+        (item) =>
+          item.scope === override.scope &&
+          item.date === override.date &&
+          item.currency === override.currency &&
+          item.invoiceId === override.invoiceId &&
+          item.vendorId === override.vendorId,
+      );
+      if (index < 0) return [...current, override];
+      const next = [...current];
+      next[index] = override;
+      return next;
+    });
+  }, []);
+
+  const removeFxOverride = useCallback((id: string) => {
+    setFxOverrides((current) => current.filter((item) => item.id !== id));
+  }, []);
+
   const decide = useCallback(
     (invoiceId: string, decision: "APPROVED" | "BLOCKED", note: string) => {
       const record = records.find((item) => item.invoiceId === invoiceId);
@@ -453,6 +505,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     mailBusy,
     keys,
     vendors,
+    vendorCards,
+    saveVendorCard,
     autonomous,
     improper,
     latency,
@@ -474,6 +528,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     notifyOpenClaw,
     saveKeys,
     decide,
+    fxOverrides,
+    saveFxOverride,
+    removeFxOverride,
   };
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

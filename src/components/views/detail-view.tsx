@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
+import { hasFilePreview, SyntheticDocument } from "@/components/synthetic-document";
 import { describeChecks } from "@/lib/engine/criteria";
 import { amount, originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import { ArrowLeft, Check, RefreshCw } from "lucide-react";
@@ -65,7 +66,9 @@ export function DetailView({ id }: { id: string }) {
             <span>{invoice.documentLabel}</span>
             <span>{invoice.issueDate}</span>
           </div>
-          {invoice.documentKind === "chat" ? (
+          {hasFilePreview(invoice.documentPath) ? (
+            <SyntheticDocument invoice={invoice} />
+          ) : invoice.documentKind === "chat" ? (
             <div className="chat-paper">
               <div className="chat-header">{vendorDisplay(invoice.vendorId, invoice.vendorName)} · mensaje</div>
               <div className="chat-bubble">

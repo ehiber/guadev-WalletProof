@@ -108,7 +108,7 @@ export function HelpView() {
           </section>
           <section className="panel">
             <h2>Lo que no hace esta pantalla</h2>
-            <p>El correo muestra el sondeo de Gmail y no envía mensajes. El veredicto usa el libro sintético: USD, EUR, BRL, ARS, PEN, CRC, COP, MXN, CLP, BOB, ZAR y VES, más BTC, ETH, USDT y USDC. USDC cubre Base, Ethereum, Polygon, Celo y Solana con la misma tasa. Consultar el día solo muestra una referencia. Restaurar vuelve al lote y a las reglas iniciales.</p>
+            <p>El correo muestra el sondeo de Gmail y no envía mensajes. Las tasas muestran la referencia del día. Si modificas una, puedes aplicarla a ese día, a una factura o a un proveedor en esa fecha. Restaurar vuelve al lote, las reglas y las tasas iniciales.</p>
           </section>
         </div>
       </div>
