@@ -269,7 +269,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         for (const item of extra) seenArrivals.current.add(item.invoice.id);
         setInvoices((current) => {
           const known = new Set(current.map((invoice) => invoice.id));
-          const fresh = extra.map((item) => item.invoice).filter((invoice) => !known.has(invoice.id));
+          const fresh = extra
+            .map((item) => item.invoice)
+            .filter((invoice) => !known.has(invoice.id))
+            .map((invoice) => (invoice.receivedAt ? invoice : { ...invoice, receivedAt: new Date().toISOString() }));
           return fresh.length === 0 ? current : [...current, ...fresh];
         });
       }
@@ -453,7 +456,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
         const preview = URL.createObjectURL(file);
         previewUrls.current.push(preview);
-        const invoice = { ...body.invoice, documentPath: preview };
+        const invoice = {
+          ...body.invoice,
+          documentPath: preview,
+          receivedAt: body.invoice.receivedAt ?? new Date().toISOString(),
+        };
         seenArrivals.current.add(invoice.id);
         setInvoices((current) => {
           const index = current.findIndex((item) => item.id === invoice.id);

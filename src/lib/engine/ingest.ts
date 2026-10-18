@@ -150,6 +150,7 @@ function unreadableOutcome(
     lineItems: partial.description?.trim() ? [partial.description.trim()] : [],
     evidenceNote: evidenceFor(input.channel, input.text, `Documento recibido por ${input.channel}. ${read.reason}`),
     intakeChannel: intakeFor(input.channel),
+    receivedAt: new Date().toISOString(),
     extractionValid: false,
     extractionNote: read.reason,
     jevSnapshot: null,
@@ -212,6 +213,7 @@ function invoiceFromPartial(
       `Documento recibido por ${input.channel}. ${lineCheck ?? "Las reglas usan el total impreso."}`,
     ),
     intakeChannel: intakeFor(input.channel),
+    receivedAt: new Date().toISOString(),
     lineCheck,
     jevSnapshot: null,
   };

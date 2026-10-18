@@ -39,8 +39,19 @@ main:focus{outline:none}
 .invoice-search{display:flex;align-items:center;gap:8px;min-width:260px;height:40px;padding:0 12px;border:1px solid #d5dbe6;border-radius:10px;background:#fff}
 .invoice-search .icon{width:16px;height:16px;color:#7b8494;flex:none}
 .invoice-search input{border:0;background:transparent;outline:none;width:100%;font-size:14px;color:var(--ink)}
-.iv-table th{font-size:13px;letter-spacing:0;font-weight:550;color:#6d7686;text-transform:none;background:#fbfbfc;padding:14px 18px}
-.iv-table td{vertical-align:top;padding:18px;font-size:14px}
+.table-card{container-type:inline-size}
+.iv-table{--iv-gap:20px;display:grid;width:100%;column-gap:var(--iv-gap);justify-content:space-between;grid-template-columns:max-content max-content max-content minmax(8rem,16rem) max-content}
+.iv-table.cols-6{grid-template-columns:max-content max-content max-content max-content minmax(8rem,16rem) max-content}
+.iv-table thead,.iv-table tbody{display:grid;grid-column:1/-1;grid-template-columns:subgrid}
+.iv-table tr{display:grid;grid-column:1/-1;grid-template-columns:subgrid;align-items:center;padding:16px 0}
+.iv-table thead tr{background:#fbfbfc;padding-top:14px;padding-bottom:14px}
+.iv-table tbody tr{border-top:1px solid #edf0f6}
+.iv-table th,.iv-table td{padding:0;border:0;background:transparent;width:auto}
+.iv-table th:first-child,.iv-table td:first-child{padding-left:18px}
+.iv-table th:last-child,.iv-table td:last-child{padding-right:18px}
+.iv-table th{font-size:13px;letter-spacing:0;font-weight:550;color:#6d7686;text-transform:none}
+.iv-table td{font-size:14px}
+@container(max-width:760px){.iv-table{--iv-gap:16px}}
 .iv-id{display:block;font-weight:650;color:var(--accent);text-decoration:none;letter-spacing:-.01em;white-space:nowrap}
 .iv-id:hover{text-decoration:underline}
 .iv-vendor{display:block;margin-top:3px;color:var(--ink)}
@@ -53,10 +64,15 @@ main:focus{outline:none}
 .iv-amount small{display:block;margin-top:4px;color:var(--muted);font-size:12px}
 .iv-table .badge{border-radius:999px;padding:4px 9px;font-size:12px;font-weight:600}
 .iv-table .badge::before{content:"";width:6px;height:6px;border-radius:999px;background:currentColor}
-.iv-reason{margin-top:8px;max-width:34ch;color:var(--muted);font-size:13px;line-height:1.45}
+.iv-reason{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.45}
+.iv-table-gap{margin-top:28px}
+.iv-entered{display:block;width:max-content;max-width:4.8rem;font-size:13px;line-height:1.35}
+.iv-pager-actions{display:flex;align-items:center;gap:12px}
+.iv-page-size select{height:32px;padding:0 28px 0 10px;border:1px solid #d5dbe6;border-radius:8px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23596477' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;color:var(--ink);font-size:13px;appearance:none}
 .iv-row{cursor:pointer}
-.iv-detail{color:var(--accent);font-size:13px;font-weight:550;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.iv-detail{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:13px;font-weight:550;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
 .iv-detail:hover{color:var(--accent-hover)}
+.iv-detail .icon{width:15px;height:15px}
 .iv-pager{align-items:center;font-size:13px}
 .iv-pages{display:flex;align-items:center;gap:4px}
 .iv-pages button{min-width:32px;height:32px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--ink);display:inline-flex;align-items:center;justify-content:center}

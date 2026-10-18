@@ -217,4 +217,19 @@ const SEED: Invoice[] = [
   },
 ];
 
-export const INITIAL_DATASET: Invoice[] = SEED.map((invoice) => ({ ...invoice, projectId: DEMO_PROJECT_ID }));
+const RECEIVED_AT = [
+  "2026-10-16T09:05:00",
+  "2026-10-16T10:20:00",
+  "2026-10-16T11:40:00",
+  "2026-10-16T12:15:00",
+  "2026-10-16T13:05:00",
+  "2026-10-16T14:30:00",
+  "2026-10-16T15:10:00",
+  "2026-10-16T16:45:00",
+];
+
+export const INITIAL_DATASET: Invoice[] = SEED.map((invoice, index) => ({
+  ...invoice,
+  projectId: DEMO_PROJECT_ID,
+  receivedAt: RECEIVED_AT[index],
+}));

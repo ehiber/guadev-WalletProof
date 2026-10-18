@@ -105,6 +105,7 @@ export interface Invoice {
   vendorId: string;
   vendorName: string;
   issueDate: string;
+  receivedAt?: string;
   currency: Currency;
   subtotal: number;
   taxAmount: number;

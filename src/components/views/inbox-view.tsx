@@ -4,7 +4,7 @@ import { useSession } from "@/components/session/session-provider";
 import { originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,7 +16,24 @@ const FILTERS: Array<{ id: "ALL" | DecisionStatus; label: string }> = [
   { id: "BLOCKED", label: "Rechazado" },
 ];
 
-const PAGE_SIZE = 5;
+const PAGE_OPTIONS = [5, 10, 20];
+
+function pageSizeOptions(total: number) {
+  return PAGE_OPTIONS.filter((size, index) => total > (index === 0 ? 0 : PAGE_OPTIONS[index - 1]));
+}
+
+function enteredLabel(value: string | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-VE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 function purse(paid: number, retained: number, total: number) {
   const base = total > 0 ? total : 1;
@@ -160,6 +177,7 @@ export function InboxView() {
   const [filter, setFilter] = useState<"ALL" | DecisionStatus>("ALL");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_OPTIONS[0]);
   const project = session.projects.find((item) => item.id === session.activeProjectId);
   const showAll = session.activeProjectId === ALL_PROJECTS;
   const scoped = useMemo(
@@ -175,7 +193,8 @@ export function InboxView() {
     return tally;
   }, [scoped, session]);
   const ordered = scoped
-    .filter((invoice) => {
+    .map((invoice, index) => ({ invoice, index }))
+    .filter(({ invoice }) => {
       const record = session.records.find((item) => item.invoiceId === invoice.id);
       if (!record) return false;
       const matchesFilter = filter === "ALL" || session.statusOf(record) === filter;
@@ -183,12 +202,20 @@ export function InboxView() {
       const haystack = `${vendorDisplay(invoice.vendorId, invoice.vendorName)} ${invoice.id} ${invoice.invoiceNumber} ${projectName}`.toLowerCase();
       return matchesFilter && haystack.includes(query.trim().toLowerCase());
     })
-    .reverse();
-  const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+    .sort((a, b) => {
+      const left = a.invoice.receivedAt ?? "";
+      const right = b.invoice.receivedAt ?? "";
+      if (left !== right) return right.localeCompare(left);
+      return b.index - a.index;
+    })
+    .map(({ invoice }) => invoice);
+  const sizeOptions = pageSizeOptions(ordered.length);
+  const size = sizeOptions.includes(pageSize) ? pageSize : (sizeOptions[sizeOptions.length - 1] ?? PAGE_OPTIONS[0]);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / size));
   const currentPage = Math.min(page, pageCount - 1);
-  const pageRows = ordered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
-  const rangeStart = ordered.length === 0 ? 0 : currentPage * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(ordered.length, (currentPage + 1) * PAGE_SIZE);
+  const pageRows = ordered.slice(currentPage * size, currentPage * size + size);
+  const rangeStart = ordered.length === 0 ? 0 : currentPage * size + 1;
+  const rangeEnd = Math.min(ordered.length, (currentPage + 1) * size);
   const sumStatus = (invoices: Invoice[], status: DecisionStatus) =>
     invoices.reduce((sum, invoice) => {
       const record = session.records.find((item) => item.invoiceId === invoice.id);
@@ -272,7 +299,7 @@ export function InboxView() {
           <BudgetMeter label={`Disponible de ${project?.name ?? "este proyecto"}`} {...currentPurse} />
         </div>
       )}
-      <section className="table-card" aria-label="Facturas">
+      <section className={showAll ? "table-card iv-table-gap" : "table-card"} aria-label="Facturas">
         {ordered.length === 0 ? (
           <div className="empty">
             <h3>{scoped.length === 0 ? "Este proyecto todavía no tiene facturas" : "Sin resultados"}</h3>
@@ -285,11 +312,12 @@ export function InboxView() {
         ) : (
           <>
             <div className="table-wrap">
-              <table className="iv-table">
+              <table className={showAll ? "iv-table cols-6" : "iv-table"}>
                 <thead>
                   <tr>
                     <th scope="col">Factura / proveedor</th>
                     {showAll ? <th scope="col">Proyecto</th> : null}
+                    <th scope="col">Ingresó</th>
                     <th scope="col">Importe</th>
                     <th scope="col">Estado y motivo</th>
                     <th scope="col">
@@ -330,15 +358,22 @@ export function InboxView() {
                             )}
                           </td>
                         ) : null}
+                        <td className="iv-entered">{enteredLabel(invoice.receivedAt)}</td>
                         <td className="iv-amount">
                           <strong>
-                            {documentAmount(invoice.totalPayable)} <span>{invoice.currency}</span>
+                            {invoice.currency === "USD" || record.hardRulesResult.fxValid ? (
+                              <>
+                                {documentAmount(invoice.currency === "USD" ? invoice.totalPayable : record.totalPayableUsd)} <span>USD</span>
+                              </>
+                            ) : (
+                              "Sin tasa del día"
+                            )}
                           </strong>
-                          <small>
-                            {invoice.currency !== "USD" && !record.hardRulesResult.fxValid
-                              ? "Sin tasa del día"
-                              : `${documentAmount(record.totalPayableUsd)} USD`}
-                          </small>
+                          {invoice.currency !== "USD" ? (
+                            <small>
+                              {documentAmount(invoice.totalPayable)} {invoice.currency}
+                            </small>
+                          ) : null}
                         </td>
                         <td>
                           <span className={statusClass(status)}>{statusLabel(status)}</span>
@@ -346,7 +381,7 @@ export function InboxView() {
                         </td>
                         <td>
                           <Link className="iv-detail" href={`/facturas/${invoice.id}`} onClick={(event) => event.stopPropagation()}>
-                            Ver detalle
+                            Ver detalle <ArrowRight className="icon" />
                           </Link>
                         </td>
                       </tr>
@@ -359,7 +394,26 @@ export function InboxView() {
               <span>
                 {rangeStart}–{rangeEnd} de {ordered.length}
               </span>
-              <div className="iv-pages" role="navigation" aria-label="Páginas de facturas">
+              <div className="iv-pager-actions">
+                {sizeOptions.length > 1 ? (
+                  <label className="iv-page-size">
+                    <span className="visually-hidden">Facturas por página</span>
+                    <select
+                      value={size}
+                      onChange={(event) => {
+                        setPageSize(Number(event.target.value));
+                        setPage(0);
+                      }}
+                    >
+                      {sizeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option} por página
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div className="iv-pages" role="navigation" aria-label="Páginas de facturas">
                 <button type="button" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
                   <ChevronLeft className="icon" />
                 </button>
@@ -376,6 +430,7 @@ export function InboxView() {
                 >
                   <ChevronRight className="icon" />
                 </button>
+                </div>
               </div>
             </div>
           </>
