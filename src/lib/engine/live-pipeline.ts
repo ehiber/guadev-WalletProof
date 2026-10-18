@@ -3,7 +3,9 @@ import { evaluateHardRules } from "@/lib/engine/2-hard-rules";
 import { evaluateJev } from "@/lib/engine/3-jev-client";
 import { explainDecision } from "@/lib/engine/4-explainer";
 import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
+import { loadFxMarket } from "@/lib/engine/fx-market";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
+import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import type { AuditRecord, CompanyRules, Invoice, PriorDocument } from "@/types/blinka";
 
@@ -38,6 +40,8 @@ export async function runLiveInvoices(
   source?: Invoice[],
 ): Promise<{ results: LiveInvoiceResult[]; records: AuditRecord[]; invoices: Invoice[] }> {
   const keys = resolveKeys(override);
+  const asOf = paymentDate();
+  const market = await loadFxMarket(asOf);
   const wanted = new Set(ids);
   const invoices = (source ?? INITIAL_DATASET).map((invoice) => ({ ...invoice }));
   const prepared = new Map<string, Awaited<ReturnType<typeof extractInvoice>>>();
@@ -60,7 +64,7 @@ export async function runLiveInvoices(
     const extracted = prepared.get(original.id);
     const invoice = extracted?.invoice ?? original;
     const rulesStarted = performance.now();
-    const { hard } = evaluateHardRules(invoice, rules, priors, spent);
+    const { hard } = evaluateHardRules(invoice, rules, priors, spent, [], asOf, market);
     const rulesMs = Math.max(1, Math.round(performance.now() - rulesStarted));
 
     let jevTiming: LayerTiming = {
@@ -92,7 +96,7 @@ export async function runLiveInvoices(
       };
     }
 
-    const record = evaluateInvoice(invoice, rules, priors, spent, hard.passed ? invoice.jevSnapshot : null);
+    const record = evaluateInvoice(invoice, rules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market);
     merged.push(invoice);
     records.push(record);
     priors.push({

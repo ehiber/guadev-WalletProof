@@ -3,7 +3,7 @@
 import { useSession } from "@/components/session/session-provider";
 import { fxRate, usd, vendorDisplay } from "@/lib/format";
 import { fxScopeLabel, isModifiedRate, type FxOverride, type FxScope } from "@/lib/engine/fx-overrides";
-import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, USDC_NETWORKS, fxTickerRates, type FxReference } from "@/lib/mock-data/fx-ledger";
+import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, USDC_NETWORKS, fxTickerRates, paymentDate } from "@/lib/mock-data/fx-ledger";
 import type { FxRate } from "@/types/blinka";
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -15,33 +15,10 @@ export function RatesView() {
   const fiat = rates.filter((rate) => (FIAT_CODES as readonly string[]).includes(rate.currency));
   const crypto = rates.filter((rate) => (CRYPTO_CODES as readonly string[]).includes(rate.currency));
   const used = session.records.filter((record) => record.fxSnapshot);
-  const [reference, setReference] = useState<FxReference | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void consult();
-  }, []);
-
-  async function consult() {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/fx/reference");
-      const body = (await response.json()) as FxReference;
-      if (!response.ok) throw new Error("La referencia no respondió.");
-      setReference(body);
-      if (body.errors.length > 0 && body.fiat.length === 0 && body.crypto.length === 0) setError(body.errors.join(" "));
-    } catch {
-      setError("No se pudo consultar la referencia de hoy.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function quoteFor(currency: string): number | null {
-    const quote = [...(reference?.fiat ?? []), ...(reference?.crypto ?? [])].find((item) => item.currency === currency);
-    return quote?.unitsPerUsd ?? null;
+    const quote = session.fxMarket.find((item) => item.currency === currency);
+    return quote && quote.rateToUsd > 0 ? quote.rateToUsd : null;
   }
 
   return (
@@ -51,22 +28,17 @@ export function RatesView() {
           <h1>Tasas de cambio</h1>
           <p>1 USD equivale al valor mostrado.</p>
         </div>
-        <button className="btn" type="button" disabled={busy} onClick={() => void consult()}>
-          <RefreshCw className="icon" /> {busy ? "Consultando…" : "Consultar referencia del día"}
+        <button className="btn" type="button" disabled={session.fxBusy} onClick={() => void session.refreshFx()}>
+          <RefreshCw className="icon" /> {session.fxBusy ? "Consultando…" : "Consultar referencia del día"}
         </button>
       </div>
-      {error ? (
+      {session.fxError ? (
         <div className="notice error">
-          <p>{error}</p>
+          <p>{session.fxError}</p>
         </div>
       ) : null}
-      {reference?.errors.map((item) => (
-        <div key={item} className="notice error">
-          <p>{item}</p>
-        </div>
-      ))}
-      <RateStrip title="Monedas" rates={fiat} quoteFor={quoteFor} busy={busy} asOf={reference?.asOf} overrides={session.fxOverrides} />
-      <RateStrip title="Criptomonedas" rates={crypto} quoteFor={quoteFor} busy={busy} asOf={reference?.asOf} overrides={session.fxOverrides} crypto />
+      <RateStrip title="Monedas" rates={fiat} quoteFor={quoteFor} busy={session.fxBusy} asOf={session.fxMarket[0]?.date} overrides={session.fxOverrides} />
+      <RateStrip title="Criptomonedas" rates={crypto} quoteFor={quoteFor} busy={session.fxBusy} asOf={session.fxMarket[0]?.date} overrides={session.fxOverrides} crypto />
       <RateEditor />
       <section className="panel">
         <h2>Conversiones del lote</h2>
@@ -106,7 +78,7 @@ export function RatesView() {
         </div>
       </section>
       <p className="page-footer">
-        USDC vale lo mismo en {USDC_NETWORKS.join(", ")}. Una factura sin tasa para su fecha queda rechazada.
+        USDC vale lo mismo en {USDC_NETWORKS.join(", ")}. La tasa es la del día de pago. Si falta, lo decide la regla de tasa.
       </p>
     </>
   );
@@ -168,6 +140,10 @@ function RateEditor() {
   const currencies = [...FIAT_CODES, ...CRYPTO_CODES];
   const [currency, setCurrency] = useState<string>(currencies[0] ?? "COP");
   const [date, setDate] = useState(DEMO_ISSUE_DATE);
+
+  useEffect(() => {
+    setDate(paymentDate());
+  }, []);
   const [value, setValue] = useState("");
   const [scope, setScope] = useState<FxScope>("day");
   const [invoiceId, setInvoiceId] = useState("");
@@ -249,10 +225,7 @@ function RateEditor() {
               <select
                 value={invoiceId}
                 onChange={(event) => {
-                  const nextId = event.target.value;
-                  setInvoiceId(nextId);
-                  const invoice = session.invoices.find((item) => item.id === nextId);
-                  if (invoice) setDate(invoice.issueDate.slice(0, 10));
+                  setInvoiceId(event.target.value);
                 }}
               >
                 <option value="">Elige una factura</option>

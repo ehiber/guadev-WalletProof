@@ -8,6 +8,7 @@ const criterionIds = [
   "budget",
   "anomalyHigh",
   "whitelist",
+  "fx",
   "limit",
   "lineCheck",
   "contract",

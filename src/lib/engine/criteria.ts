@@ -12,6 +12,7 @@ export const CRITERION_ORDER: CriterionId[] = [
   "budget",
   "anomalyHigh",
   "whitelist",
+  "fx",
   "limit",
   "lineCheck",
   "contract",
@@ -23,6 +24,7 @@ export const CRITERION_LABEL: Record<CriterionId, string> = {
   budget: "Presupuesto suficiente",
   anomalyHigh: "Anomalía alta o cuenta distinta",
   whitelist: "Proveedor autorizado",
+  fx: "Tasa del día de pago",
   limit: "Total dentro del límite automático",
   lineCheck: "Coherencia aritmética de líneas",
   contract: "Concepto acorde con el servicio",
@@ -34,6 +36,7 @@ export const DEFAULT_CRITERIA: RuleCriterion[] = [
   { id: "budget", action: "BLOCKED", enabled: true },
   { id: "anomalyHigh", action: "BLOCKED", enabled: true },
   { id: "whitelist", action: "ESCALATED", enabled: true },
+  { id: "fx", action: "ESCALATED", enabled: true },
   { id: "limit", action: "ESCALATED", enabled: true },
   { id: "lineCheck", action: "ESCALATED", enabled: true },
   { id: "contract", action: "ESCALATED", enabled: true },
@@ -76,6 +79,16 @@ export type CheckRow = {
   action: CriterionAction | "PERMANENT" | null;
 };
 
+function fxDetail(invoice: Invoice, record: AuditRecord, rules: CompanyRules): string {
+  if (!criterionOf(rules, "fx").enabled) return "Criterio desactivado. No decide esta factura.";
+  if (!record.fxSnapshot) {
+    const dated = record.hardRulesResult.reasons.find((item) => item.startsWith("No hay tasa"));
+    return dated ?? `No hay tasa para ${invoice.currency} el día de pago.`;
+  }
+  const modified = record.fxSnapshot.source === "Tasa modificada" ? "Tasa modificada · " : "";
+  return `${modified}1 USD = ${record.fxSnapshot.rateToUsd} ${record.fxSnapshot.currency} · ${record.fxSnapshot.date}`;
+}
+
 export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[] {
   const rules = normalizeRules(record.rulesSnapshot);
   const hard = record.hardRulesResult;
@@ -90,12 +103,16 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
     },
     {
       id: "fx",
-      label: "Tasa FX auditada",
-      pass: hard.fxValid,
-      detail: record.fxSnapshot
-        ? `${record.fxSnapshot.source === "Tasa modificada" ? "Tasa modificada · " : ""}1 USD = ${record.fxSnapshot.rateToUsd} ${record.fxSnapshot.currency} · ${record.fxSnapshot.date}`
-        : `No hay tasa para ${invoice.currency} el ${invoice.issueDate}.`,
-      action: hard.fxValid ? null : "PERMANENT",
+      label: CRITERION_LABEL.fx,
+      pass: hard.extractionValid === false || !criterionOf(rules, "fx").enabled || hard.fxValid,
+      detail:
+        hard.extractionValid === false
+          ? "La tasa se revisa cuando la extracción está completa."
+          : fxDetail(invoice, record, rules),
+      action:
+        hard.extractionValid !== false && criterionOf(rules, "fx").enabled && !hard.fxValid
+          ? criterionOf(rules, "fx").action
+          : null,
     },
   ];
 
@@ -108,7 +125,9 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
     {
       id: "budget",
       pass: hard.isWithinPeriodBudget,
-      detail: `${hard.totalPayableUsd.toFixed(2)} USD frente al saldo del periodo.`,
+      detail: hard.fxValid
+        ? `${hard.totalPayableUsd.toFixed(2)} USD frente al saldo del periodo.`
+        : "Sin equivalente en USD. El presupuesto no se evalúa.",
     },
     {
       id: "whitelist",
@@ -118,7 +137,9 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
     {
       id: "limit",
       pass: hard.isWithinSingleLimit,
-      detail: `${hard.totalPayableUsd.toFixed(2)} USD frente al tope de ${rules.maxAutoApproveUsd.toFixed(2)} USD.`,
+      detail: hard.fxValid
+        ? `${hard.totalPayableUsd.toFixed(2)} USD frente al tope de ${rules.maxAutoApproveUsd.toFixed(2)} USD.`
+        : "Sin equivalente en USD. El tope no se evalúa.",
     },
     {
       id: "lineCheck",

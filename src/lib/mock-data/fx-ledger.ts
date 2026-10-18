@@ -30,8 +30,27 @@ export const FX_LEDGER: Record<string, Partial<Record<string, FxRate>>> = {
   },
 };
 
-export function lookupFx(issueDate: string, currency: string): FxRate | null {
-  return FX_LEDGER[issueDate]?.[currency] ?? null;
+export function paymentDate(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function lookupFx(asOf: string, currency: string): FxRate | null {
+  const exact = FX_LEDGER[asOf]?.[currency];
+  if (!exact || exact.rateToUsd <= 0) return null;
+  return { ...exact, date: asOf };
+}
+
+export function ratesFromReference(reference: FxReference, asOf: string): FxRate[] {
+  return [...reference.fiat, ...reference.crypto].flatMap((quote) =>
+    quote.unitsPerUsd > 0
+      ? [{ date: asOf, currency: quote.currency, rateToUsd: quote.unitsPerUsd, source: quote.source }]
+      : [],
+  );
 }
 
 export function fxTickerRates(): FxRate[] {

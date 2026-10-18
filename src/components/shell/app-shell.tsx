@@ -4,7 +4,6 @@ import { ByokModal } from "@/components/byok-modal";
 import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
 import { useSession } from "@/components/session/session-provider";
 import { fxRate } from "@/lib/format";
-import { fxTickerRates } from "@/lib/mock-data/fx-ledger";
 import {
   BarChart3,
   CircleHelp,
@@ -37,7 +36,7 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const session = useSession();
-  const rates = fxTickerRates().filter((rate) => rate.currency !== "USD");
+  const rates = session.fxMarket.filter((rate) => rate.currency !== "USD");
   const [tickerIndex, setTickerIndex] = useState(0);
   const [tickerPaused, setTickerPaused] = useState(false);
 
@@ -49,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (pathname.startsWith("/dev")) return <>{children}</>;
 
-  const rate = rates[tickerIndex % rates.length];
+  const rate = rates.length > 0 ? rates[tickerIndex % rates.length] : undefined;
 
   return (
     <>
@@ -94,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>USD / {rate?.currency}</span>
             <strong>{rate ? fxRate(rate.rateToUsd) : "Sin tasa"}</strong>
             <small>
-              {rate?.date} · Indicativa
+              {rate ? `${rate.date} · API` : "Sin tasa del día"}
             </small>
           </div>
           <button className="text-btn" type="button" onClick={() => setTickerPaused((current) => !current)}>

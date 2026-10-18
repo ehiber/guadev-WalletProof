@@ -56,7 +56,7 @@ export function AuditInspector({
               label="Tasa FX"
               value={record.fxSnapshot ? `${record.fxSnapshot.rateToUsd} · ${record.fxSnapshot.date}` : "Sin tasa"}
             />
-            <Fact label="Total USD" value={usd(record.totalPayableUsd)} />
+            <Fact label="Total USD" value={record.hardRulesResult.fxValid ? usd(record.totalPayableUsd) : "Sin tasa"} />
           </dl>
         </div>
         <div className="space-y-4">

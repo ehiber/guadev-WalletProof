@@ -1,5 +1,6 @@
 import { evaluateBatch } from "../src/lib/engine/pipeline";
 import { DEFAULT_RULES } from "../src/lib/mock-data/company-rules";
+import { DEMO_ISSUE_DATE } from "../src/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "../src/lib/mock-data/initial-dataset";
 
 const EXPECTED = [
@@ -13,7 +14,7 @@ const EXPECTED = [
   ["INV-08", "BLOCKED"],
 ] as const;
 
-const results = evaluateBatch(INITIAL_DATASET, DEFAULT_RULES);
+const results = evaluateBatch(INITIAL_DATASET, DEFAULT_RULES, [], DEMO_ISSUE_DATE);
 const byId = new Map(results.map((record) => [record.invoiceId, record]));
 const inv02 = byId.get("INV-02");
 const inv03 = byId.get("INV-03");

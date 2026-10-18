@@ -13,6 +13,21 @@ export function amount(value: number, currency: string): string {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ${currency}`;
 }
 
+export function payableLines(
+  totalPayable: number,
+  currency: string,
+  totalPayableUsd: number,
+  fxValid: boolean,
+): { primary: string; secondary?: string } {
+  if (!fxValid) {
+    return totalPayable > 0
+      ? { primary: amount(totalPayable, currency), secondary: "Sin tasa del día" }
+      : { primary: amount(totalPayable, currency) };
+  }
+  if (currency === "USD") return { primary: usd(totalPayableUsd) };
+  return { primary: usd(totalPayableUsd), secondary: amount(totalPayable, currency) };
+}
+
 const DEMO_ORIGIN: Record<string, string> = {
   "INV-01": "Correo",
   "INV-02": "Correo",

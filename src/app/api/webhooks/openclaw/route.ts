@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { attachmentFrom, ingestIncoming, publishVerdict } from "@/lib/engine/ingest";
 import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
+import { loadFxMarket } from "@/lib/engine/fx-market";
 import { evaluateBatch } from "@/lib/engine/pipeline";
+import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import {
   clearOpenClawEvents,
@@ -47,9 +49,11 @@ function authorized(request: Request): boolean {
   return timingSafeEqual(left, right);
 }
 
-function recordFor(invoiceId: string) {
+async function recordFor(invoiceId: string) {
   const invoices = [...INITIAL_DATASET, ...arrivedInvoices()];
-  return evaluateBatch(invoices, sessionRules()).find((record) => record.invoiceId === invoiceId);
+  const asOf = paymentDate();
+  const market = await loadFxMarket(asOf);
+  return evaluateBatch(invoices, sessionRules(), [], asOf, market).find((record) => record.invoiceId === invoiceId);
 }
 
 export async function GET(request: Request) {
@@ -125,7 +129,7 @@ export async function POST(request: Request) {
     if (!body.invoiceId || !decision || !note) {
       return Response.json({ error: "La aprobación necesita factura, decisión y nota." }, { status: 400 });
     }
-    const record = recordFor(body.invoiceId);
+    const record = await recordFor(body.invoiceId);
     if (!record || record.finalStatus !== "ESCALATED") {
       const event = pushOpenClawEvent({
         kind: "approval",

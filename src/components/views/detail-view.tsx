@@ -115,7 +115,7 @@ export function DetailView({ id }: { id: string }) {
           </div>
           <div className="paper-total">
             <span>Total USD</span>
-            <span>{usd(record.totalPayableUsd)}</span>
+            <span>{record.hardRulesResult.fxValid ? usd(record.totalPayableUsd) : "Sin tasa"}</span>
           </div>
           <p className="budget-note">{invoice.evidenceNote}</p>
         </section>

@@ -7,11 +7,12 @@ import { evaluateBatch } from "@/lib/engine/pipeline";
 import type { FxOverride } from "@/lib/engine/fx-overrides";
 import type { GmailStatus } from "@/lib/inbound/types";
 import { DEFAULT_RULES, VENDORS } from "@/lib/mock-data/company-rules";
+import { DEMO_ISSUE_DATE, paymentDate, ratesFromReference, type FxReference } from "@/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { maskAccount, seedVendorCards, type VendorCard } from "@/lib/vendors/directory";
-import type { AuditRecord, CompanyRules, DecisionStatus, Invoice, Vendor } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DecisionStatus, FxRate, Invoice, Vendor } from "@/types/blinka";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 const KEYS_STORAGE = "blinka-byok";
@@ -100,6 +101,10 @@ type SessionValue = {
   fxOverrides: FxOverride[];
   saveFxOverride: (override: FxOverride) => void;
   removeFxOverride: (id: string) => void;
+  fxMarket: FxRate[];
+  fxError: string | null;
+  fxBusy: boolean;
+  refreshFx: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -124,13 +129,43 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [mailBusy, setMailBusy] = useState(false);
   const [vendorCards, setVendorCards] = useState<VendorCard[]>(() => seedVendorCards());
   const [fxOverrides, setFxOverrides] = useState<FxOverride[]>([]);
+  const [paymentDay, setPaymentDay] = useState(DEMO_ISSUE_DATE);
+  const [fxMarket, setFxMarket] = useState<FxRate[]>([]);
+  const [paidRates, setPaidRates] = useState<Record<string, FxRate>>({});
+  const [fxError, setFxError] = useState<string | null>(null);
+  const [fxBusy, setFxBusy] = useState(false);
   const [resetCount, setResetCount] = useState(0);
   const storedKeys = useSyncExternalStore(subscribeKeys, readStoredKeys, () => "");
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
   const previewUrls = useRef<string[]>([]);
   const seenArrivals = useRef(new Set<string>());
   const pullGeneration = useRef(0);
-  const records = useMemo(() => evaluateBatch(invoices, rules, fxOverrides), [fxOverrides, invoices, rules]);
+  const refreshFx = useCallback(async () => {
+    const asOf = paymentDate();
+    setPaymentDay(asOf);
+    setFxBusy(true);
+    setFxError(null);
+    try {
+      const response = await fetch("/api/fx/reference");
+      const body = (await response.json()) as FxReference;
+      if (!response.ok) throw new Error("La referencia no respondió.");
+      const rates = ratesFromReference(body, asOf);
+      setFxMarket(rates);
+      if (rates.length === 0) setFxError(body.errors.join(" ") || "La referencia del día no trajo tasas.");
+    } catch {
+      setFxMarket([]);
+      setFxError("No se pudo consultar la tasa del día.");
+    } finally {
+      setFxBusy(false);
+    }
+  }, []);
+  useEffect(() => {
+    void refreshFx();
+  }, [refreshFx]);
+  const records = useMemo(
+    () => evaluateBatch(invoices, rules, fxOverrides, paymentDay, fxMarket, paidRates),
+    [fxMarket, fxOverrides, invoices, paidRates, paymentDay, rules],
+  );
 
   const statusOf = useCallback(
     (record: AuditRecord): DecisionStatus => {
@@ -140,6 +175,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     },
     [human],
   );
+
+  useEffect(() => {
+    setPaidRates((current) => {
+      const next = { ...current };
+      let changed = false;
+      const liveIds = new Set(invoices.map((invoice) => invoice.id));
+      for (const id of Object.keys(next)) {
+        if (!liveIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      for (const record of records) {
+        const paid = statusOf(record) === "APPROVED" && record.fxSnapshot;
+        const pinned = next[record.invoiceId];
+        if (paid && record.fxSnapshot && (!pinned || pinned.currency !== record.fxSnapshot.currency)) {
+          next[record.invoiceId] = record.fxSnapshot;
+          changed = true;
+        }
+        if (!paid && pinned) {
+          delete next[record.invoiceId];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [invoices, records, statusOf]);
 
   const explanationOf = useCallback(
     (invoice: Invoice, record: AuditRecord) => {
@@ -346,6 +408,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLiveError(null);
     setVendorCards(seedVendorCards());
     setFxOverrides([]);
+    setPaidRates({});
     setResetCount((current) => current + 1);
     void fetch("/api/invoices", { method: "DELETE" });
     void fetch("/api/webhooks/openclaw", {
@@ -539,6 +602,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     fxOverrides,
     saveFxOverride,
     removeFxOverride,
+    fxMarket,
+    fxError,
+    fxBusy,
+    refreshFx,
   };
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

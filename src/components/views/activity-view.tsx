@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { payableLines, statusLabel, vendorDisplay } from "@/lib/format";
 import { Download, FileText } from "lucide-react";
 import Link from "next/link";
 
@@ -60,7 +60,11 @@ export function ActivityView() {
                     <pre>{JSON.stringify(snapshot, null, 2)}</pre>
                   </details>
                 </div>
-                <time>{usd(record.totalPayableUsd)}</time>
+                <time>
+                  {invoice
+                    ? payableLines(invoice.totalPayable, invoice.currency, record.totalPayableUsd, record.hardRulesResult.fxValid).primary
+                    : record.invoiceId}
+                </time>
               </article>
             );
           })}

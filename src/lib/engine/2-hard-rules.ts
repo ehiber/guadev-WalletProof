@@ -1,5 +1,6 @@
 import { criterionEnabled, criterionOf } from "@/lib/engine/criteria";
 import { resolveFx, type FxOverride } from "@/lib/engine/fx-overrides";
+import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { sha256Hex } from "@/lib/engine/sha256";
 import { findVendor } from "@/lib/mock-data/company-rules";
 import type {
@@ -24,6 +25,9 @@ export function evaluateHardRules(
   priors: PriorDocument[],
   currentPeriodSpentUsd: number,
   overrides: FxOverride[] = [],
+  asOf = paymentDate(),
+  market?: FxRate[],
+  settled?: FxRate | null,
 ): { hard: HardRulesResult; fxSnapshot: FxRate | null } {
   if (invoice.extractionValid === false) {
     const isExactDuplicate = priors.some(
@@ -50,7 +54,7 @@ export function evaluateHardRules(
     };
   }
 
-  const fxSnapshot = resolveFx(invoice, overrides);
+  const fxSnapshot = resolveFx(invoice, overrides, asOf, market, settled);
   const fxValid = fxSnapshot !== null && fxSnapshot.rateToUsd > 0;
   const totalPayableUsd = fxValid ? toUsd(invoice.totalPayable, fxSnapshot.rateToUsd) : 0;
   const isExactDuplicate = priors.some(
@@ -59,17 +63,18 @@ export function evaluateHardRules(
       prior.documentHash === invoice.documentHash,
   );
   const isVendorWhitelisted = findVendor(invoice.vendorId)?.active === true;
-  const isWithinSingleLimit = totalPayableUsd <= rules.maxAutoApproveUsd;
+  const isWithinSingleLimit = !fxValid || totalPayableUsd <= rules.maxAutoApproveUsd;
   const isWithinPeriodBudget =
-    Number((currentPeriodSpentUsd + totalPayableUsd).toFixed(2)) <= rules.monthlyBudgetUsd;
+    !fxValid || Number((currentPeriodSpentUsd + totalPayableUsd).toFixed(2)) <= rules.monthlyBudgetUsd;
   const duplicateCounts = criterionEnabled(rules, "duplicate") && isExactDuplicate;
   const whitelistCounts = criterionEnabled(rules, "whitelist") && !isVendorWhitelisted;
-  const limitCounts = criterionEnabled(rules, "limit") && !isWithinSingleLimit;
-  const budgetCounts = criterionEnabled(rules, "budget") && !isWithinPeriodBudget;
+  const limitCounts = criterionEnabled(rules, "limit") && fxValid && !isWithinSingleLimit;
+  const budgetCounts = criterionEnabled(rules, "budget") && fxValid && !isWithinPeriodBudget;
   const lineCounts = criterionEnabled(rules, "lineCheck") && Boolean(invoice.lineCheck);
+  const fxCounts = criterionEnabled(rules, "fx") && !fxValid;
   const reasons: string[] = [];
 
-  if (!fxValid) reasons.push(`No hay tasa FX auditada para ${invoice.currency} el ${invoice.issueDate}.`);
+  if (fxCounts) reasons.push(`No hay tasa para ${invoice.currency} el ${asOf}.`);
   if (lineCounts && invoice.lineCheck) reasons.push(invoice.lineCheck);
   if (duplicateCounts) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
   if (whitelistCounts) reasons.push("El proveedor no está activo en la whitelist.");
@@ -112,9 +117,10 @@ function fromFailures(failures: CriterionAction[]): DecisionStatus | null {
 }
 
 export function decideStatus(hard: HardRulesResult, jev: JevResult | null, rules: CompanyRules): DecisionStatus {
-  if (hard.extractionValid === false || !hard.fxValid) return "BLOCKED";
+  if (hard.extractionValid === false) return "BLOCKED";
 
   const hardFailures: CriterionAction[] = [];
+  consider(hardFailures, rules, "fx", !hard.fxValid);
   consider(hardFailures, rules, "duplicate", hard.isExactDuplicate);
   consider(hardFailures, rules, "budget", !hard.isWithinPeriodBudget);
   consider(hardFailures, rules, "whitelist", !hard.isVendorWhitelisted);

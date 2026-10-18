@@ -4,13 +4,15 @@ import { evaluateJev } from "@/lib/engine/3-jev-client";
 import { explainDecision } from "@/lib/engine/4-explainer";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
+import { loadFxMarket } from "@/lib/engine/fx-market";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
+import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { sha256Bytes, sha256Hex } from "@/lib/engine/sha256";
 import { matchVendor } from "@/lib/mock-data/company-rules";
 import { rememberDocument } from "@/lib/inbound/documents";
 import { pushOpenClawEvent } from "@/lib/openclaw/constants";
 import { rememberArrival } from "@/lib/session-inbox";
-import type { AuditRecord, CompanyRules, DocumentKind, IntakeChannel, Invoice, PriorDocument } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DocumentKind, FxRate, IntakeChannel, Invoice, PriorDocument } from "@/types/blinka";
 
 export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
@@ -49,11 +51,16 @@ export interface IngestOutcome {
   explanation: { text: string; mode: "live" | "fallback" };
 }
 
-function priorState(existing: Invoice[], rules: CompanyRules): { priors: PriorDocument[]; spent: number } {
+function priorState(
+  existing: Invoice[],
+  rules: CompanyRules,
+  asOf: string,
+  market: FxRate[],
+): { priors: PriorDocument[]; spent: number } {
   const priors: PriorDocument[] = [];
   let spent = 0;
   for (const invoice of existing) {
-    const record = evaluateInvoice(invoice, rules, priors, spent);
+    const record = evaluateInvoice(invoice, rules, priors, spent, invoice.jevSnapshot, [], asOf, market);
     priors.push({
       invoiceNumber: invoice.invoiceNumber,
       vendorId: invoice.vendorId,
@@ -118,6 +125,8 @@ function unreadableOutcome(
   },
   read: Extract<DocumentRead, { ok: false }>,
   extractMs: number,
+  asOf: string,
+  market: FxRate[],
 ): IngestOutcome {
   const hash = input.bytes && input.bytes.byteLength > 0 ? sha256Bytes(input.bytes) : sha256Hex(input.text ?? "");
   const visual = kindFor(input.channel, input.mime);
@@ -145,8 +154,8 @@ function unreadableOutcome(
     extractionNote: read.reason,
     jevSnapshot: null,
   };
-  const { priors, spent } = priorState(input.existing, input.rules);
-  const record = evaluateInvoice(invoice, input.rules, priors, spent, null);
+  const { priors, spent } = priorState(input.existing, input.rules, asOf, market);
+  const record = evaluateInvoice(invoice, input.rules, priors, spent, null, [], asOf, market);
   return {
     invoice,
     record,
@@ -222,6 +231,8 @@ export async function ingestIncoming(input: {
     throw new Error("El archivo supera 4 MB.");
   }
   const keys = resolveKeys(input.keys);
+  const asOf = paymentDate();
+  const market = await loadFxMarket(asOf);
   const started = performance.now();
   const read = await extractDocument(
     { text: input.text, bytes: input.bytes, mime: input.mime, filename: input.filename },
@@ -230,7 +241,7 @@ export async function ingestIncoming(input: {
   const extractMs = Math.max(1, Math.round(performance.now() - started));
   const hash = input.bytes && input.bytes.byteLength > 0 ? sha256Bytes(input.bytes) : sha256Hex(input.text ?? "");
   if (!read.ok && !payableIsAuditable(read.partial)) {
-    const outcome = unreadableOutcome(input, read, extractMs);
+    const outcome = unreadableOutcome(input, read, extractMs, asOf, market);
     outcome.invoice = withPreview(outcome.invoice, input.bytes, input.mime);
     return outcome;
   }
@@ -266,9 +277,9 @@ export async function ingestIncoming(input: {
     ? "Extracción Zod válida."
     : "Documento recibido. El total impreso entra a las reglas.";
 
-  const { priors, spent } = priorState(input.existing, input.rules);
+  const { priors, spent } = priorState(input.existing, input.rules, asOf, market);
   const rulesStarted = performance.now();
-  const { hard } = evaluateHardRules(invoice, input.rules, priors, spent);
+  const { hard } = evaluateHardRules(invoice, input.rules, priors, spent, [], asOf, market);
   const rulesMs = Math.max(1, Math.round(performance.now() - rulesStarted));
 
   let jevTiming: LayerTiming = {
@@ -293,7 +304,7 @@ export async function ingestIncoming(input: {
     };
   }
 
-  const record = evaluateInvoice(invoice, input.rules, priors, spent, hard.passed ? invoice.jevSnapshot : null);
+  const record = evaluateInvoice(invoice, input.rules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market);
   const explainStarted = performance.now();
   const explanation = await explainDecision(record, keys);
   const outcome: IngestOutcome = {

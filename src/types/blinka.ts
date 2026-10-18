@@ -23,6 +23,7 @@ export type CriterionId =
   | "budget"
   | "anomalyHigh"
   | "whitelist"
+  | "fx"
   | "limit"
   | "lineCheck"
   | "contract"

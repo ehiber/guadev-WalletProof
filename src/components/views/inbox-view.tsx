@@ -2,7 +2,7 @@
 
 import { useSession } from "@/components/session/session-provider";
 import { describeChecks } from "@/lib/engine/criteria";
-import { originLabel, shortReason, statusClass, statusLabel, usd, vendorDisplay, vendorInitials } from "@/lib/format";
+import { originLabel, payableLines, shortReason, statusClass, statusLabel, usd, vendorDisplay, vendorInitials } from "@/lib/format";
 import type { DecisionStatus } from "@/types/blinka";
 import { ArrowRight, Download, Plus, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
@@ -182,6 +182,7 @@ export function InboxView() {
                   const record = session.records.find((item) => item.invoiceId === invoice.id)!;
                   const status = session.statusOf(record);
                   const failed = describeChecks(invoice, record).find((check) => !check.pass);
+                  const payable = payableLines(invoice.totalPayable, invoice.currency, record.totalPayableUsd, record.hardRulesResult.fxValid);
                   return (
                     <tr key={invoice.id}>
                       <td className="vendor-td">
@@ -195,7 +196,10 @@ export function InboxView() {
                           </div>
                         </div>
                       </td>
-                      <td className="money">{usd(record.totalPayableUsd)}</td>
+                      <td className="money">
+                        {payable.primary}
+                        {payable.secondary ? <small>{payable.secondary}</small> : null}
+                      </td>
                       <td>
                         <span className={statusClass(status)}>{statusLabel(status)}</span>
                         <div className="reason-short">{shortReason(failed?.id, status)}</div>

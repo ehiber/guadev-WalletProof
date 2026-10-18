@@ -38,7 +38,7 @@ export function RulesView() {
       <div className="page-heading">
         <div>
           <h1>Reglas</h1>
-          <p>Mover un criterio cambia la consecuencia al instante. Duplicado y presupuesto rechazan por defecto. La tasa ausente y la extracción inválida siempre rechazan.</p>
+          <p>Mover un criterio cambia la consecuencia al instante. Duplicado y presupuesto rechazan por defecto. Si falta la tasa del día de pago, la consecuencia la marca esa regla. La extracción inválida siempre rechaza.</p>
         </div>
       </div>
       <section className="panel">
