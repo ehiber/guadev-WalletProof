@@ -1,6 +1,7 @@
 import { buildAuditHash, decideStatus, evaluateHardRules } from "@/lib/engine/2-hard-rules";
 import type { FxOverride } from "@/lib/engine/fx-overrides";
-import type { AuditRecord, CompanyRules, FxRate, Invoice, JevResult, PriorDocument } from "@/types/blinka";
+import { effectiveRules, scopeFor, type ProjectScope } from "@/lib/mock-data/projects";
+import type { AuditRecord, CompanyRules, FxRate, Invoice, JevResult, PriorDocument, Project } from "@/types/blinka";
 
 function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string {
   const usd = record.totalPayableUsd.toFixed(2);
@@ -46,8 +47,9 @@ export function evaluateInvoice(
   asOf?: string,
   market?: FxRate[],
   settled?: FxRate | null,
+  scope?: ProjectScope,
 ): AuditRecord {
-  const { hard, fxSnapshot } = evaluateHardRules(invoice, rules, priors, currentPeriodSpentUsd, overrides, asOf, market, settled);
+  const { hard, fxSnapshot } = evaluateHardRules(invoice, rules, priors, currentPeriodSpentUsd, overrides, asOf, market, settled, scope);
   const jevResult = hard.passed ? jev : null;
   const finalStatus = decideStatus(hard, jevResult, rules);
   const rulesSnapshot: CompanyRules = { ...rules };
@@ -74,13 +76,29 @@ export function evaluateBatch(
   asOf?: string,
   market?: FxRate[],
   settled?: Record<string, FxRate>,
+  projects?: Project[],
 ): AuditRecord[] {
   const priors: PriorDocument[] = [];
   let spent = 0;
+  const spentByProject: Record<string, number> = {};
   const records: AuditRecord[] = [];
 
   for (const invoice of invoices) {
-    const record = evaluateInvoice(invoice, rules, priors, spent, invoice.jevSnapshot, overrides, asOf, market, settled?.[invoice.id]);
+    const projectSpent = invoice.projectId ? (spentByProject[invoice.projectId] ?? 0) : 0;
+    const resolved = scopeFor(invoice, projects, projectSpent);
+    const applied = effectiveRules(rules, resolved.rulesOverlay);
+    const record = evaluateInvoice(
+      invoice,
+      applied,
+      priors,
+      spent,
+      invoice.jevSnapshot,
+      overrides,
+      asOf,
+      market,
+      settled?.[invoice.id],
+      resolved.scope,
+    );
     records.push(record);
     priors.push({
       invoiceNumber: invoice.invoiceNumber,
@@ -89,6 +107,9 @@ export function evaluateBatch(
     });
     if (record.finalStatus === "APPROVED") {
       spent = Number((spent + record.totalPayableUsd).toFixed(2));
+      if (invoice.projectId && resolved.scope?.assigned) {
+        spentByProject[invoice.projectId] = Number((projectSpent + record.totalPayableUsd).toFixed(2));
+      }
     }
   }
 

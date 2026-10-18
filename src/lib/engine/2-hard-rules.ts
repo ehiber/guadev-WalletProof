@@ -1,5 +1,6 @@
 import { criterionEnabled, criterionOf } from "@/lib/engine/criteria";
 import { resolveFx, type FxOverride } from "@/lib/engine/fx-overrides";
+import type { ProjectScope } from "@/lib/mock-data/projects";
 import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { sha256Hex } from "@/lib/engine/sha256";
 import { findVendor } from "@/lib/mock-data/company-rules";
@@ -28,6 +29,7 @@ export function evaluateHardRules(
   asOf = paymentDate(),
   market?: FxRate[],
   settled?: FxRate | null,
+  scope?: ProjectScope,
 ): { hard: HardRulesResult; fxSnapshot: FxRate | null } {
   if (invoice.extractionValid === false) {
     const isExactDuplicate = priors.some(
@@ -44,6 +46,8 @@ export function evaluateHardRules(
         extractionValid: false,
         isExactDuplicate,
         isVendorWhitelisted: false,
+        hasProject: true,
+        isVendorOnProject: true,
         fxValid: false,
         isWithinSingleLimit: false,
         isWithinPeriodBudget: true,
@@ -64,12 +68,22 @@ export function evaluateHardRules(
   );
   const isVendorWhitelisted = findVendor(invoice.vendorId)?.active === true;
   const isWithinSingleLimit = !fxValid || totalPayableUsd <= rules.maxAutoApproveUsd;
-  const isWithinPeriodBudget =
+  const withinCompanyBudget =
     !fxValid || Number((currentPeriodSpentUsd + totalPayableUsd).toFixed(2)) <= rules.monthlyBudgetUsd;
+  const projectBudgetUsd = scope?.projectBudgetUsd;
+  const withinProjectBudget =
+    projectBudgetUsd == null ||
+    !fxValid ||
+    Number(((scope?.projectSpentUsd ?? 0) + totalPayableUsd).toFixed(2)) <= projectBudgetUsd;
+  const isWithinPeriodBudget = withinCompanyBudget && withinProjectBudget;
+  const hasProject = scope ? scope.assigned : true;
+  const isVendorOnProject = scope ? !scope.assigned || scope.vendorOnProject : true;
   const duplicateCounts = criterionEnabled(rules, "duplicate") && isExactDuplicate;
   const whitelistCounts = criterionEnabled(rules, "whitelist") && !isVendorWhitelisted;
   const limitCounts = criterionEnabled(rules, "limit") && fxValid && !isWithinSingleLimit;
   const budgetCounts = criterionEnabled(rules, "budget") && fxValid && !isWithinPeriodBudget;
+  const projectCounts = Boolean(scope) && criterionEnabled(rules, "project") && !hasProject;
+  const projectVendorCounts = Boolean(scope) && criterionEnabled(rules, "projectVendor") && hasProject && !isVendorOnProject;
   const lineCounts = criterionEnabled(rules, "lineCheck") && Boolean(invoice.lineCheck);
   const fxCounts = criterionEnabled(rules, "fx") && !fxValid;
   const reasons: string[] = [];
@@ -78,10 +92,21 @@ export function evaluateHardRules(
   if (lineCounts && invoice.lineCheck) reasons.push(invoice.lineCheck);
   if (duplicateCounts) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
   if (whitelistCounts) reasons.push("El proveedor no está activo en la whitelist.");
+  if (projectCounts) reasons.push("La factura no tiene proyecto.");
+  if (projectVendorCounts) reasons.push("El proveedor no está asignado a este proyecto.");
   if (limitCounts) reasons.push("El total a pagar en USD supera el límite automático.");
-  if (budgetCounts) reasons.push("El total no cabe en el presupuesto restante del periodo.");
+  if (budgetCounts && !withinCompanyBudget) reasons.push("El total no cabe en el presupuesto restante del periodo.");
+  if (budgetCounts && !withinProjectBudget) reasons.push("El total no cabe en el presupuesto del proyecto.");
 
-  const passed = fxValid && !duplicateCounts && !whitelistCounts && !limitCounts && !budgetCounts && !lineCounts;
+  const passed =
+    fxValid &&
+    !duplicateCounts &&
+    !whitelistCounts &&
+    !projectCounts &&
+    !projectVendorCounts &&
+    !limitCounts &&
+    !budgetCounts &&
+    !lineCounts;
 
   return {
     fxSnapshot,
@@ -90,6 +115,8 @@ export function evaluateHardRules(
       ...(invoice.lineCheck ? { lineCheck: true } : {}),
       isExactDuplicate,
       isVendorWhitelisted,
+      hasProject,
+      isVendorOnProject,
       fxValid,
       isWithinSingleLimit,
       isWithinPeriodBudget,
@@ -124,6 +151,8 @@ export function decideStatus(hard: HardRulesResult, jev: JevResult | null, rules
   consider(hardFailures, rules, "duplicate", hard.isExactDuplicate);
   consider(hardFailures, rules, "budget", !hard.isWithinPeriodBudget);
   consider(hardFailures, rules, "whitelist", !hard.isVendorWhitelisted);
+  consider(hardFailures, rules, "project", !hard.hasProject);
+  consider(hardFailures, rules, "projectVendor", hard.hasProject && !hard.isVendorOnProject);
   consider(hardFailures, rules, "limit", !hard.isWithinSingleLimit);
   consider(hardFailures, rules, "lineCheck", hard.lineCheck === true);
   const hardStatus = fromFailures(hardFailures);

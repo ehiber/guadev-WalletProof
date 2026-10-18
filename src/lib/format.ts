@@ -68,6 +68,8 @@ const SHORT_REASON: Record<string, string> = {
   duplicate: "Cobro duplicado",
   budget: "No cabe en el presupuesto",
   whitelist: "Proveedor nuevo",
+  project: "Sin proyecto",
+  projectVendor: "Proveedor fuera del proyecto",
   limit: "Supera el límite automático",
   lineCheck: "Las líneas no cierran",
   jev: "JEV no se consultó",

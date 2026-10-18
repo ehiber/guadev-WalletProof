@@ -12,6 +12,8 @@ export const CRITERION_ORDER: CriterionId[] = [
   "budget",
   "anomalyHigh",
   "whitelist",
+  "project",
+  "projectVendor",
   "fx",
   "limit",
   "lineCheck",
@@ -24,6 +26,8 @@ export const CRITERION_LABEL: Record<CriterionId, string> = {
   budget: "Presupuesto suficiente",
   anomalyHigh: "Anomalía alta o cuenta distinta",
   whitelist: "Proveedor autorizado",
+  project: "Factura asignada a un proyecto",
+  projectVendor: "Proveedor asignado al proyecto",
   fx: "Tasa del día de pago",
   limit: "Total dentro del límite automático",
   lineCheck: "Coherencia aritmética de líneas",
@@ -36,6 +40,8 @@ export const DEFAULT_CRITERIA: RuleCriterion[] = [
   { id: "budget", action: "BLOCKED", enabled: true },
   { id: "anomalyHigh", action: "BLOCKED", enabled: true },
   { id: "whitelist", action: "ESCALATED", enabled: true },
+  { id: "project", action: "ESCALATED", enabled: true },
+  { id: "projectVendor", action: "ESCALATED", enabled: true },
   { id: "fx", action: "ESCALATED", enabled: true },
   { id: "limit", action: "ESCALATED", enabled: true },
   { id: "lineCheck", action: "ESCALATED", enabled: true },
@@ -133,6 +139,20 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
       id: "whitelist",
       pass: hard.isVendorWhitelisted,
       detail: hard.isVendorWhitelisted ? "El proveedor está activo." : "El proveedor no está activo en la lista.",
+    },
+    {
+      id: "project",
+      pass: hard.hasProject,
+      detail: hard.hasProject ? "Hay un proyecto asignado." : "Sin proyecto. La factura escala a revisión.",
+    },
+    {
+      id: "projectVendor",
+      pass: hard.isVendorOnProject,
+      detail: !hard.hasProject
+        ? "Se revisa cuando la factura tiene proyecto."
+        : hard.isVendorOnProject
+          ? "El proveedor está en ese proyecto."
+          : "El proveedor no está asignado a este proyecto.",
     },
     {
       id: "limit",

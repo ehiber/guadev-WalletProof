@@ -9,10 +9,11 @@ import type { GmailStatus } from "@/lib/inbound/types";
 import { DEFAULT_RULES, VENDORS } from "@/lib/mock-data/company-rules";
 import { DEMO_ISSUE_DATE, paymentDate, ratesFromReference, type FxReference } from "@/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
+import { DEMO_PROJECT_ID, INITIAL_PROJECTS } from "@/lib/mock-data/projects";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { maskAccount, seedVendorCards, type VendorCard } from "@/lib/vendors/directory";
-import type { AuditRecord, CompanyRules, DecisionStatus, FxRate, Invoice, Vendor } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DecisionStatus, FxRate, Invoice, Project, Vendor } from "@/types/blinka";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 const KEYS_STORAGE = "blinka-byok";
@@ -61,6 +62,9 @@ export type VendorProfile = Vendor & { accounts: string[] };
 
 type SessionValue = {
   rules: CompanyRules;
+  projects: Project[];
+  activeProjectId: string;
+  setActiveProjectId: (id: string) => void;
   invoices: Invoice[];
   records: AuditRecord[];
   human: Record<string, HumanDecision>;
@@ -94,7 +98,7 @@ type SessionValue = {
   reset: () => void;
   resetCount: number;
   upload: (file: File) => Promise<Invoice | null>;
-  exportCsv: () => void;
+  exportCsv: (invoiceIds?: string[]) => void;
   notifyOpenClaw: (invoice: Invoice, record: AuditRecord) => Promise<void>;
   saveKeys: (next: ByokKeys) => void;
   decide: (invoiceId: string, decision: "APPROVED" | "BLOCKED", note: string) => void;
@@ -117,6 +121,8 @@ export function useSession(): SessionValue {
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [rules, setRules] = useState<CompanyRules>(() => cloneRules(DEFAULT_RULES));
+  const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
+  const [activeProjectId, setActiveProjectId] = useState(DEMO_PROJECT_ID);
   const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_DATASET);
   const [human, setHuman] = useState<Record<string, HumanDecision>>({});
   const [live, setLive] = useState<Record<string, LiveMeta>>({});
@@ -163,8 +169,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void refreshFx();
   }, [refreshFx]);
   const records = useMemo(
-    () => evaluateBatch(invoices, rules, fxOverrides, paymentDay, fxMarket, paidRates),
-    [fxMarket, fxOverrides, invoices, paidRates, paymentDay, rules],
+    () => evaluateBatch(invoices, rules, fxOverrides, paymentDay, fxMarket, paidRates, projects),
+    [fxMarket, fxOverrides, invoices, paidRates, paymentDay, projects, rules],
   );
 
   const statusOf = useCallback(
@@ -402,6 +408,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     seenArrivals.current = new Set();
     pullGeneration.current += 1;
     setRules(cloneRules(DEFAULT_RULES));
+    setProjects(INITIAL_PROJECTS);
+    setActiveProjectId(DEMO_PROJECT_ID);
     setInvoices(INITIAL_DATASET);
     setHuman({});
     setLive({});
@@ -469,16 +477,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [invoices, keys, rules],
   );
 
-  const exportCsv = useCallback(() => {
-    const exportRecords = records.map((record) => {
+  const exportCsv = useCallback((invoiceIds?: string[]) => {
+    const allowed = invoiceIds ? new Set(invoiceIds) : null;
+    const chosen = allowed ? invoices.filter((invoice) => allowed.has(invoice.id)) : invoices;
+    const exportRecords = records.flatMap((record) => {
+      if (allowed && !allowed.has(record.invoiceId)) return [];
       const invoice = invoices.find((item) => item.id === record.invoiceId);
-      return {
+      return [{
         ...record,
         finalStatus: statusOf(record),
         explanation: invoice ? explanationOf(invoice, record) : record.explanation,
-      };
+      }];
     });
-    const blob = new Blob([recordsToCsv(invoices, exportRecords)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([recordsToCsv(chosen, exportRecords)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -562,6 +573,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const value: SessionValue = {
     rules,
+    projects,
+    activeProjectId,
+    setActiveProjectId,
     invoices,
     records,
     human,

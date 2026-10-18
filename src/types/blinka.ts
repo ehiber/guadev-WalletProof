@@ -23,6 +23,8 @@ export type CriterionId =
   | "budget"
   | "anomalyHigh"
   | "whitelist"
+  | "project"
+  | "projectVendor"
   | "fx"
   | "limit"
   | "lineCheck"
@@ -33,6 +35,28 @@ export interface RuleCriterion {
   id: CriterionId;
   action: CriterionAction;
   enabled: boolean;
+}
+
+export interface ProjectCriterionOverride {
+  action?: CriterionAction;
+  enabled?: boolean;
+}
+
+export interface ProjectRules {
+  maxAutoApproveUsd?: number;
+  monthlyBudgetUsd?: number;
+  jevConfidenceThreshold?: number;
+  semanticDuplicateMinProbability?: number;
+  criteria?: Partial<Record<CriterionId, ProjectCriterionOverride>>;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  status: "active" | "archived";
+  vendorIds: string[];
+  rules: ProjectRules;
 }
 
 export interface CompanyRules {
@@ -76,6 +100,7 @@ export interface JevResult {
 
 export interface Invoice {
   id: string;
+  projectId?: string;
   invoiceNumber: string;
   vendorId: string;
   vendorName: string;
@@ -105,6 +130,8 @@ export interface HardRulesResult {
   lineCheck?: boolean;
   isExactDuplicate: boolean;
   isVendorWhitelisted: boolean;
+  hasProject: boolean;
+  isVendorOnProject: boolean;
   fxValid: boolean;
   isWithinSingleLimit: boolean;
   isWithinPeriodBudget: boolean;

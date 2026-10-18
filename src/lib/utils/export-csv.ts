@@ -9,6 +9,7 @@ function cell(value: string | number): string {
 export function recordsToCsv(invoices: Invoice[], records: AuditRecord[]): string {
   const header = [
     "invoiceId",
+    "projectId",
     "vendor",
     "invoiceNumber",
     "currency",
@@ -31,6 +32,7 @@ export function recordsToCsv(invoices: Invoice[], records: AuditRecord[]): strin
     lines.push(
       [
         invoice.id,
+        invoice.projectId ?? "",
         invoice.vendorName,
         invoice.invoiceNumber,
         invoice.currency,

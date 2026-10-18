@@ -1,62 +1,223 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { describeChecks } from "@/lib/engine/criteria";
-import { originLabel, payableLines, shortReason, statusClass, statusLabel, usd, vendorDisplay, vendorInitials } from "@/lib/format";
-import type { DecisionStatus } from "@/types/blinka";
-import { ArrowRight, Download, Plus, RefreshCw, Search } from "lucide-react";
+import { originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { ALL_PROJECTS } from "@/lib/mock-data/projects";
+import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const FILTERS: Array<{ id: "ALL" | DecisionStatus; label: string }> = [
   { id: "ALL", label: "Todas" },
   { id: "ESCALATED", label: "Por revisar" },
-  { id: "APPROVED", label: "Pagados" },
-  { id: "BLOCKED", label: "Rechazados" },
+  { id: "APPROVED", label: "Pagado" },
+  { id: "BLOCKED", label: "Rechazado" },
 ];
+
+const PAGE_SIZE = 5;
+
+function purse(paid: number, retained: number, total: number) {
+  const base = total > 0 ? total : 1;
+  let paidPct = (paid / base) * 100;
+  let retainedPct = (retained / base) * 100;
+  if (paidPct + retainedPct > 100) {
+    const scale = 100 / (paidPct + retainedPct);
+    paidPct *= scale;
+    retainedPct *= scale;
+  }
+  return {
+    paid,
+    retained,
+    total,
+    available: Math.max(0, Number((total - paid - retained).toFixed(2))),
+    paidPct,
+    retainedPct,
+  };
+}
+
+function documentAmount(value: number): string {
+  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+function motive(record: AuditRecord): string {
+  if (record.finalStatus === "APPROVED") return "Cumple los criterios de la empresa y del proyecto.";
+  const reason = record.hardRulesResult.reasons[0];
+  if (reason) return reason;
+  if (record.jevResult?.socialEngineeringRisk.score === "HIGH") return "La cuenta de pago es distinta de la registrada.";
+  if (record.jevResult && !record.jevResult.contractCoherence.answer) return "El concepto no coincide con el servicio acordado.";
+  if (record.jevResult?.semanticDuplicate.answer) return "El concepto se parece a una factura ya registrada.";
+  return "Requiere una decisión de una persona.";
+}
+
+function ProjectSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: Array<{ id: string; label: string }>;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const current = options.find((option) => option.id === value);
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: MouseEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="invoice-select" ref={root}>
+      <button type="button" aria-label="Proyecto" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((currentOpen) => !currentOpen)}>
+        <span>{current?.label}</span>
+        <ChevronDown className="icon" aria-hidden="true" />
+      </button>
+      {open ? (
+        <ul role="listbox" aria-label="Proyecto">
+          {options.map((option) => (
+            <li key={option.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={option.id === value}
+                onClick={() => {
+                  onChange(option.id);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function BudgetMeter({
+  label,
+  paid,
+  retained,
+  total,
+  available,
+  paidPct,
+  retainedPct,
+}: {
+  label: string;
+  paid: number;
+  retained: number;
+  total: number;
+  available: number;
+  paidPct: number;
+  retainedPct: number;
+}) {
+  return (
+    <div className="budget-block">
+      <div className="budget-head">
+        <span>{label}</span>
+        <strong>
+          {usd(available)} <span className="small">USD</span>
+        </strong>
+      </div>
+      <div
+        className="budget-bar"
+        role="img"
+        aria-label={`Presupuesto ${usd(total)}, pagado ${usd(paid)}, retenido ${usd(retained)}, disponible ${usd(available)}`}
+      >
+        <span className="budget-approved" style={{ width: `${paidPct}%` }} />
+        <span className="budget-retained" style={{ width: `${retainedPct}%` }} />
+      </div>
+      <div className="budget-legend">
+        <span>
+          <i className="budget-dot paid" aria-hidden="true" /> Pagado {usd(paid)}
+        </span>
+        <span>
+          <i className="budget-dot retained" aria-hidden="true" /> Retenido {usd(retained)}
+        </span>
+        <span className="budget-total">Total {usd(total)}</span>
+      </div>
+      <p className="budget-note">Lo retenido está reservado para facturas por revisar.</p>
+    </div>
+  );
+}
 
 export function InboxView() {
   const session = useSession();
+  const router = useRouter();
   const [filter, setFilter] = useState<"ALL" | DecisionStatus>("ALL");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const project = session.projects.find((item) => item.id === session.activeProjectId);
+  const showAll = session.activeProjectId === ALL_PROJECTS;
+  const scoped = useMemo(
+    () => session.invoices.filter((invoice) => showAll || invoice.projectId === session.activeProjectId),
+    [session.activeProjectId, session.invoices, showAll],
+  );
   const counts = useMemo(() => {
-    const tally = { ALL: session.invoices.length, APPROVED: 0, ESCALATED: 0, BLOCKED: 0 };
-    for (const record of session.records) tally[session.statusOf(record)] += 1;
+    const tally = { ALL: scoped.length, APPROVED: 0, ESCALATED: 0, BLOCKED: 0 };
+    for (const invoice of scoped) {
+      const record = session.records.find((item) => item.invoiceId === invoice.id);
+      if (record) tally[session.statusOf(record)] += 1;
+    }
     return tally;
-  }, [session]);
-  const visible = session.invoices.filter((invoice) => {
-    const record = session.records.find((item) => item.invoiceId === invoice.id);
-    if (!record) return false;
-    const matchesFilter = filter === "ALL" || session.statusOf(record) === filter;
-    const haystack = `${vendorDisplay(invoice.vendorId, invoice.vendorName)} ${invoice.id} ${invoice.invoiceNumber}`.toLowerCase();
-    return matchesFilter && haystack.includes(query.trim().toLowerCase());
-  });
-  const budget = session.rules.monthlyBudgetUsd || 1;
-  const consumedPct = Math.min(100, (session.consumed / budget) * 100);
-  const retainedPct = Math.min(100 - consumedPct, (session.retained / budget) * 100);
-  const automatic = counts.APPROVED + counts.BLOCKED;
+  }, [scoped, session]);
+  const ordered = scoped
+    .filter((invoice) => {
+      const record = session.records.find((item) => item.invoiceId === invoice.id);
+      if (!record) return false;
+      const matchesFilter = filter === "ALL" || session.statusOf(record) === filter;
+      const projectName = session.projects.find((item) => item.id === invoice.projectId)?.name ?? "";
+      const haystack = `${vendorDisplay(invoice.vendorId, invoice.vendorName)} ${invoice.id} ${invoice.invoiceNumber} ${projectName}`.toLowerCase();
+      return matchesFilter && haystack.includes(query.trim().toLowerCase());
+    })
+    .reverse();
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageRows = ordered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
+  const rangeStart = ordered.length === 0 ? 0 : currentPage * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(ordered.length, (currentPage + 1) * PAGE_SIZE);
+  const sumStatus = (invoices: Invoice[], status: DecisionStatus) =>
+    invoices.reduce((sum, invoice) => {
+      const record = session.records.find((item) => item.invoiceId === invoice.id);
+      return sum + (record && session.statusOf(record) === status ? record.totalPayableUsd : 0);
+    }, 0);
+  const currentPurse = purse(
+    sumStatus(scoped, "APPROVED"),
+    sumStatus(scoped, "ESCALATED"),
+    project?.rules.monthlyBudgetUsd ?? session.rules.monthlyBudgetUsd,
+  );
+
+  function chooseFilter(next: "ALL" | DecisionStatus) {
+    setFilter(next);
+    setPage(0);
+  }
 
   return (
     <>
       <div className="page-heading">
         <div>
           <h1>Facturas</h1>
-          <p>Cada factura, una decisión. Cada decisión, una explicación.</p>
+          <p>Recibe, revisa y sigue cada decisión.</p>
         </div>
         <div className="heading-actions">
           <Link className="btn primary" href="/facturas/nueva">
             <Plus className="icon" /> Añadir factura
           </Link>
-          <button className="btn" type="button" onClick={session.exportCsv}>
+          <button className="btn" type="button" onClick={() => session.exportCsv(ordered.map((invoice) => invoice.id))}>
             <Download className="icon" /> Exportar CSV
-          </button>
-          <button
-            className="btn"
-            type="button"
-            disabled={session.running}
-            onClick={() => void session.runLive(session.invoices.map((invoice) => invoice.id))}
-          >
-            <RefreshCw className="icon" /> {session.running ? "Revisando…" : "Revisar con IA"}
           </button>
         </div>
       </div>
@@ -65,163 +226,161 @@ export function InboxView() {
           <p>{session.liveError}</p>
         </div>
       ) : null}
-      <div className="callout">
-        <div className="callout-icon" aria-hidden="true">
-          {counts.ESCALATED ? "!" : "✓"}
-        </div>
-        <div>
-          <strong>{counts.ESCALATED ? `${counts.ESCALATED} facturas necesitan tu criterio` : "Todo revisado por ahora"}</strong>
-          <p>
-            {counts.ESCALATED
-              ? "Revisa las excepciones y deja constancia de tu decisión."
-              : "Las decisiones están registradas y disponibles para consulta."}
-          </p>
-        </div>
-        <button className="btn sm" type="button" onClick={() => setFilter(counts.ESCALATED ? "ESCALATED" : "ALL")}>
-          {counts.ESCALATED ? "Revisar pendientes" : "Ver decisiones"} <ArrowRight className="icon" />
-        </button>
-      </div>
-      <div className="overview">
-        <div className="status-summary">
-          <div>
-            <span className="status-label">
-              <span className="dot" style={{ color: "#46734c" }} />
-              Pagados
-            </span>
-            <strong>{counts.APPROVED}</strong>
-            <small>Pago simulado registrado</small>
-          </div>
-          <div>
-            <span className="status-label">
-              <span className="dot" style={{ color: "#987022" }} />
-              Por revisar
-            </span>
-            <strong>{counts.ESCALATED}</strong>
-            <small>Decisión humana</small>
-          </div>
-          <div>
-            <span className="status-label">
-              <span className="dot" style={{ color: "#a4554c" }} />
-              Rechazados
-            </span>
-            <strong>{counts.BLOCKED}</strong>
-            <small>No continúa al pago</small>
-          </div>
-        </div>
-        <div>
-          <div className="budget-head">
-            <span>Disponible del periodo</span>
-            <strong>
-              {usd(session.available)} <span className="small muted">USD</span>
-            </strong>
-          </div>
-          <div
-            className="budget-bar"
-            role="img"
-            aria-label={`Presupuesto ${usd(session.rules.monthlyBudgetUsd)}, pagado ${usd(session.consumed)}, retenido ${usd(session.retained)}, disponible ${usd(session.available)}`}
-          >
-            <span className="budget-approved" style={{ width: `${consumedPct}%` }} />
-            <span className="budget-prior" style={{ width: `${retainedPct}%` }} />
-          </div>
-          <div className="budget-legend">
-            <span>Pagado {usd(session.consumed)}</span>
-            <span>Retenido {usd(session.retained)}</span>
-            <span>Total {usd(session.rules.monthlyBudgetUsd)}</span>
-          </div>
-          <p className="budget-note">Los pagos registrados consumen presupuesto. Lo retenido espera criterio.</p>
-        </div>
-      </div>
-      <div className="section-heading">
-        <div>
-          <h2>
-            Facturas del periodo <span className="muted small">/ {session.invoices.length}</span>
-          </h2>
-          <p>
-            {automatic} de {session.invoices.length} resueltas automáticamente · incluye pagos y rechazos.
-          </p>
-        </div>
-        <Link href="/reglas">Reglas vigentes</Link>
-      </div>
-      <section className="table-card" aria-label="Facturas">
-        <div className="table-toolbar">
-          <div className="tabs" role="tablist" aria-label="Filtrar por decisión">
-            {FILTERS.map((item) => (
-              <button key={item.id} className="tab" type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>
+      <div className="invoice-filters">
+        <div className="invoice-tabs" role="tablist" aria-label="Filtrar por decisión">
+          {FILTERS.map((item) => {
+            const count = item.id === "ALL" ? counts.ALL : counts[item.id];
+            return (
+              <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => chooseFilter(item.id)}>
                 {item.label}
-                <span>{item.id === "ALL" ? counts.ALL : counts[item.id]}</span>
+                <span className={item.id === "ESCALATED" ? "count attention" : "count"}>{count}</span>
               </button>
-            ))}
-          </div>
-          <label className="search">
+            );
+          })}
+        </div>
+        <div className="invoice-tools">
+          <ProjectSelect
+            value={session.activeProjectId}
+            options={[
+              ...session.projects
+                .filter((item) => item.status === "active")
+                .map((item) => ({ id: item.id, label: item.name })),
+              { id: ALL_PROJECTS, label: "Todos los proyectos" },
+            ]}
+            onChange={(id) => {
+              session.setActiveProjectId(id);
+              setPage(0);
+            }}
+          />
+          <label className="invoice-search">
             <Search className="icon" />
-            <span className="visually-hidden">Buscar proveedor o factura</span>
-            <input type="search" value={query} placeholder="Buscar proveedor o factura" onChange={(event) => setQuery(event.target.value)} />
+            <span className="visually-hidden">Buscar factura o proveedor</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Buscar factura o proveedor"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(0);
+              }}
+            />
           </label>
         </div>
-        {visible.length === 0 ? (
+      </div>
+      {showAll ? null : (
+        <div className="invoice-budget">
+          <BudgetMeter label={`Disponible de ${project?.name ?? "este proyecto"}`} {...currentPurse} />
+        </div>
+      )}
+      <section className="table-card" aria-label="Facturas">
+        {ordered.length === 0 ? (
           <div className="empty">
-            <h3>Sin resultados</h3>
-            <p>Ninguna factura coincide con este filtro.</p>
+            <h3>{scoped.length === 0 ? "Este proyecto todavía no tiene facturas" : "Sin resultados"}</h3>
+            <p>
+              {scoped.length === 0
+                ? "Las que agregues aquí se evalúan con las reglas de la empresa y las diferencias de este proyecto."
+                : "Ninguna factura coincide con este filtro."}
+            </p>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">PROVEEDOR / FACTURA</th>
-                  <th scope="col">TOTAL</th>
-                  <th scope="col">DECISIÓN</th>
-                  <th scope="col">VENCE</th>
-                  <th scope="col">
-                    <span className="visually-hidden">Acciones</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((invoice) => {
-                  const record = session.records.find((item) => item.invoiceId === invoice.id)!;
-                  const status = session.statusOf(record);
-                  const failed = describeChecks(invoice, record).find((check) => !check.pass);
-                  const payable = payableLines(invoice.totalPayable, invoice.currency, record.totalPayableUsd, record.hardRulesResult.fxValid);
-                  return (
-                    <tr key={invoice.id}>
-                      <td className="vendor-td">
-                        <div className="vendor-cell">
-                          <span className="vendor-icon">{vendorInitials(invoice.vendorId, invoice.vendorName)}</span>
-                          <div>
-                            <strong>{vendorDisplay(invoice.vendorId, invoice.vendorName)}</strong>
-                            <small>
-                              {invoice.id} · {originLabel(invoice)}
-                            </small>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="money">
-                        {payable.primary}
-                        {payable.secondary ? <small>{payable.secondary}</small> : null}
-                      </td>
-                      <td>
-                        <span className={statusClass(status)}>{statusLabel(status)}</span>
-                        <div className="reason-short">{shortReason(failed?.id, status)}</div>
-                      </td>
-                      <td>—</td>
-                      <td>
-                        <Link className="row-link" href={`/facturas/${invoice.id}`}>
-                          Ver detalle <ArrowRight className="icon" />
-                        </Link>
-                        <button className="text-btn" type="button" disabled={session.running} onClick={() => void session.runLive([invoice.id])}>
-                          Re-run
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="table-wrap">
+              <table className="iv-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Factura / proveedor</th>
+                    {showAll ? <th scope="col">Proyecto</th> : null}
+                    <th scope="col">Importe</th>
+                    <th scope="col">Estado y motivo</th>
+                    <th scope="col">
+                      <span className="visually-hidden">Acciones</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((invoice) => {
+                    const record = session.records.find((item) => item.invoiceId === invoice.id)!;
+                    const status = session.statusOf(record);
+                    const rowProject = session.projects.find((item) => item.id === invoice.projectId);
+                    return (
+                      <tr key={invoice.id} className="iv-row" onClick={() => router.push(`/facturas/${invoice.id}`)}>
+                        <td>
+                          <Link className="iv-id" href={`/facturas/${invoice.id}`} onClick={(event) => event.stopPropagation()}>
+                            {invoice.id}
+                          </Link>
+                          <span className="iv-vendor">{vendorDisplay(invoice.vendorId, invoice.vendorName)}</span>
+                          <span className="iv-meta">{originLabel(invoice)}</span>
+                        </td>
+                        {showAll ? (
+                          <td>
+                            {rowProject ? (
+                              <button
+                                className="iv-project"
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  session.setActiveProjectId(rowProject.id);
+                                  setPage(0);
+                                }}
+                              >
+                                {rowProject.name}
+                              </button>
+                            ) : (
+                              <span className="iv-unassigned">Sin proyecto</span>
+                            )}
+                          </td>
+                        ) : null}
+                        <td className="iv-amount">
+                          <strong>
+                            {documentAmount(invoice.totalPayable)} <span>{invoice.currency}</span>
+                          </strong>
+                          <small>
+                            {invoice.currency !== "USD" && !record.hardRulesResult.fxValid
+                              ? "Sin tasa del día"
+                              : `${documentAmount(record.totalPayableUsd)} USD`}
+                          </small>
+                        </td>
+                        <td>
+                          <span className={statusClass(status)}>{statusLabel(status)}</span>
+                          <p className="iv-reason">{motive(record)}</p>
+                        </td>
+                        <td>
+                          <Link className="iv-detail" href={`/facturas/${invoice.id}`} onClick={(event) => event.stopPropagation()}>
+                            Ver detalle
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-footer iv-pager">
+              <span>
+                {rangeStart}–{rangeEnd} de {ordered.length}
+              </span>
+              <div className="iv-pages" role="navigation" aria-label="Páginas de facturas">
+                <button type="button" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+                  <ChevronLeft className="icon" />
+                </button>
+                {Array.from({ length: pageCount }, (_, index) => (
+                  <button key={index} type="button" aria-current={index === currentPage ? "page" : undefined} onClick={() => setPage(index)}>
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-label="Página siguiente"
+                  disabled={currentPage >= pageCount - 1}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  <ChevronRight className="icon" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </section>
-      <p className="page-footer">Solo facturas sintéticas. El total en USD es el del registro.</p>
     </>
   );
 }

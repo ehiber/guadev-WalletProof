@@ -1,11 +1,12 @@
 import type { Invoice, JevResult } from "@/types/blinka";
 import { DEMO_ISSUE_DATE } from "@/lib/mock-data/fx-ledger";
+import { DEMO_PROJECT_ID } from "@/lib/mock-data/projects";
 
 function snapshot(partial: Omit<JevResult, "source" | "latencyMs"> & { latencyMs?: number }): JevResult {
   return { source: "snapshot", latencyMs: partial.latencyMs ?? 110, ...partial };
 }
 
-export const INITIAL_DATASET: Invoice[] = [
+const SEED: Invoice[] = [
   {
     id: "INV-01",
     invoiceNumber: "CN-2026-1042",
@@ -215,3 +216,5 @@ export const INITIAL_DATASET: Invoice[] = [
     }),
   },
 ];
+
+export const INITIAL_DATASET: Invoice[] = SEED.map((invoice) => ({ ...invoice, projectId: DEMO_PROJECT_ID }));
