@@ -241,7 +241,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return map;
   }, [vendorCards]);
   const records = useMemo(
-    () => evaluateBatch(invoices, rules, fxOverrides, paymentDay, fxMarket, paidRates, projects, activeVendors),
+    () => evaluateBatch(invoices, rules, fxOverrides, paymentDay, fxMarket.length > 0 ? fxMarket : undefined, paidRates, projects, activeVendors),
     [activeVendors, fxMarket, fxOverrides, invoices, paidRates, paymentDay, projects, rules],
   );
 

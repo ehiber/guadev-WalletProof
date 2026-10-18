@@ -55,6 +55,33 @@ export const VENDORS: Vendor[] = [
     costCenter: "Legal & Admin",
     bankAccountLast4: "9001",
   },
+  {
+    id: "vendor-nubemex",
+    legalName: "Nube MÃ©xico Servicios Digitales S.A. de C.V.",
+    country: "MX",
+    active: true,
+    contractSummary: "Alojamiento cloud regional, respaldo y monitoreo para la expansiÃ³n de MÃ©xico.",
+    costCenter: "Cloud & Infra",
+    bankAccountLast4: "4108",
+  },
+  {
+    id: "vendor-fiscalmx",
+    legalName: "Fiscal MX Consultores S.C.",
+    country: "MX",
+    active: true,
+    contractSummary: "Contabilidad operativa, facturaciÃ³n local y acompaÃ±amiento fiscal en MÃ©xico.",
+    costCenter: "Legal & Admin",
+    bankAccountLast4: "5264",
+  },
+  {
+    id: "vendor-rutanorte",
+    legalName: "Ruta Norte LogÃ­stica S.A. de C.V.",
+    country: "MX",
+    active: true,
+    contractSummary: "MensajerÃ­a, entrega de equipos y logÃ­stica de apertura en ciudades de MÃ©xico.",
+    costCenter: "Facilities & Maintenance",
+    bankAccountLast4: "6830",
+  },
 ];
 
 export function findVendor(vendorId: string): Vendor | undefined {

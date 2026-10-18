@@ -1,4 +1,4 @@
-import { DEMO_PROJECT_ID } from "@/lib/mock-data/projects";
+import { ANDINO_PROJECT_ID, DEMO_PROJECT_ID, MEXICO_PROJECT_ID } from "@/lib/mock-data/projects";
 import type { Project } from "@/types/blinka";
 
 export const SIDEBAR_PROJECT_LIMIT = 5;
@@ -14,7 +14,7 @@ export type NavPrefs = {
 export function freshNav(): NavPrefs {
   return {
     open: { projects: true, rules: false, stats: false },
-    order: [DEMO_PROJECT_ID, "prj-andino"],
+    order: [DEMO_PROJECT_ID, ANDINO_PROJECT_ID, MEXICO_PROJECT_ID],
     favorites: [],
   };
 }

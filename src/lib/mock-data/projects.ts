@@ -4,6 +4,8 @@ import type { CompanyRules, Invoice, Project, ProjectRules } from "@/types/blink
 
 export const ALL_PROJECTS = "all";
 export const DEMO_PROJECT_ID = "prj-operacion";
+export const ANDINO_PROJECT_ID = "prj-andino";
+export const MEXICO_PROJECT_ID = "prj-expansion-mexico";
 
 export const INITIAL_PROJECTS: Project[] = [
   {
@@ -19,7 +21,7 @@ export const INITIAL_PROJECTS: Project[] = [
     rules: {},
   },
   {
-    id: "prj-andino",
+    id: ANDINO_PROJECT_ID,
     name: "Lanzamiento Andino",
     code: "AND-26",
     status: "active",
@@ -27,8 +29,20 @@ export const INITIAL_PROJECTS: Project[] = [
     vendorListName: "Lanzamiento Andino",
     budgetMonth: "2026-10",
     currencies: ["USD", "MXN"],
-    vendorIds: ["vendor-cloudnova", "vendor-lexglobal"],
+    vendorIds: ["vendor-cloudnova", "vendor-andessoft", "vendor-lexglobal"],
     rules: { maxAutoApproveUsd: 200, monthlyBudgetUsd: 800 },
+  },
+  {
+    id: MEXICO_PROJECT_ID,
+    name: "ExpansiÃ³n MÃ©xico",
+    code: "MEX-26",
+    status: "active",
+    description: "Apertura operativa en MÃ©xico con proveedores locales y control de gasto en MXN.",
+    vendorListName: "ExpansiÃ³n MÃ©xico",
+    budgetMonth: "2026-10",
+    currencies: ["USD", "MXN"],
+    vendorIds: ["vendor-nubemex", "vendor-fiscalmx", "vendor-rutanorte"],
+    rules: { maxAutoApproveUsd: 300, monthlyBudgetUsd: 900 },
   },
 ];
 

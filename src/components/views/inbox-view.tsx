@@ -7,7 +7,7 @@ import { amount, originLabel, statusClass, statusLabel, vendorDisplay } from "@/
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
 import { inPeriod, parsePeriod } from "@/lib/stats/metrics";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
-import { ArrowRight, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Download, ExternalLink, FolderOpen, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +20,7 @@ const FILTERS: Array<{ id: "ALL" | DecisionStatus; label: string }> = [
 ];
 
 const PAGE_OPTIONS = [5, 10, 20];
+const TEST_INVOICES_DRIVE_URL = "https://drive.google.com/drive/folders/14X19nMt0gcoY0l1_CGW7yTimpAb3aNXe?usp=sharing";
 
 function pageSizeOptions(total: number) {
   return PAGE_OPTIONS.filter((size, index) => total > (index === 0 ? 0 : PAGE_OPTIONS[index - 1]));
@@ -178,6 +179,19 @@ export function InboxView() {
           </button>
         </div>
       </div>
+      <section className="callout invoice-playground" aria-labelledby="test-invoices-title">
+        <span className="callout-icon" aria-hidden="true">
+          <FolderOpen className="icon" />
+        </span>
+        <div>
+          <strong id="test-invoices-title">Facturas de prueba</strong>
+          <p>Explora el dataset sintÃ©tico del reto, descarga una factura y usa “AÃ±adir factura” para que Wallet Proof la lea, decida y explique el resultado.</p>
+          <small>Incluye casos aprobables, de revisiÃ³n y de bloqueo. Cada archivo debe pesar menos de 4 MB.</small>
+        </div>
+        <a className="btn" href={TEST_INVOICES_DRIVE_URL} target="_blank" rel="noreferrer">
+          Abrir dataset <ExternalLink className="icon" />
+        </a>
+      </section>
       {session.uploadStatus ? (
         <div className="notice" role="status">
           <p>{session.uploadStatus}</p>

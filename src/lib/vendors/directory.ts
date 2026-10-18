@@ -80,6 +80,9 @@ const CURRENCIES_BY_VENDOR: Record<string, string[]> = {
   "vendor-andessoft": ["USD", "MXN"],
   "vendor-carlos": ["USD"],
   "vendor-lexglobal": ["USD"],
+  "vendor-nubemex": ["MXN", "USD"],
+  "vendor-fiscalmx": ["MXN", "USD"],
+  "vendor-rutanorte": ["MXN", "USD"],
 };
 
 const TRADE_NAME: Record<string, string> = {
@@ -88,6 +91,9 @@ const TRADE_NAME: Record<string, string> = {
   "vendor-andessoft": "AndesSoft Devs",
   "vendor-carlos": "Carlos Méndez",
   "vendor-lexglobal": "LexGlobal Advisory",
+  "vendor-nubemex": "Nube MÃ©xico Servicios Digitales",
+  "vendor-fiscalmx": "Fiscal MX Consultores",
+  "vendor-rutanorte": "Ruta Norte LogÃ­stica",
 };
 
 export function vendorStatusLabel(status: VendorStatus): string {

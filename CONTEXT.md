@@ -100,7 +100,13 @@ Dado que las facturas en la vida real llegan por chat o correo y las aprobacione
 
 ## 📂 6. Dataset 100% Sintético de Facturas Realistas (`/public/demo-invoices`)
 > **CUMPLIMIENTO ESTRICTO DE REGLAS:** Queda estrictamente prohibido usar datos reales de empresas o clientes, así como datasets públicos con recibos de comercios reales (ej. SROIE/CORD).
-> El proyecto incluye una utilidad interna en `/dev/invoice-generator` que renderiza y exporta estos 8 documentos 100% sintéticos con texturas realistas (papel térmico arrugado, caligrafía a mano con bolígrafo, capturas de WhatsApp y PDFs corporativos).
+> El proyecto incluye 15 facturas semilla 100% sintéticas: ocho se aprueban automáticamente, cuatro escalan a una persona y tres se bloquean. Los previews locales viven en `/public/demo-invoices` y cubren documentos corporativos, tickets, notas y chats.
+
+### Corpus externo para probar la ingesta
+
+La tarjeta **Facturas de prueba** abre el [dataset sintético de Drive](https://drive.google.com/drive/folders/14X19nMt0gcoY0l1_CGW7yTimpAb3aNXe?usp=sharing) en una pestaña nueva. Es un corpus de 30–40 PDF e imágenes para descargar y cargar manualmente en Wallet Proof; no es una integración con Google Drive ni una dependencia de la demo. Cada archivo debe ser sintético y pesar menos de 4 MB.
+
+La semilla local distribuye los casos entre **Operación octubre** (`INV-01`, `02`, `04`–`07`), **Lanzamiento Andino** (`INV-03`, `08`–`11`) y **Expansión México** (`INV-12`–`15`). Todos entran por el canal `dataset`; la tabla siguiente funciona como matriz de proveedor, formato, caso y resultado esperado.
 
 | ID | Formato y Estado Visual Sintético | Proveedor Ficticio | Desglose Monetario y Tasa FX | Escenario que Prueba | Veredicto Esperado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -112,6 +118,13 @@ Dado que las facturas en la vida real llegan por chat o correo y las aprobacione
 | `INV-06` | **Factura PDF Estándar** | Estudio Pixel Sur S.A.S. (Agencia de Diseño UX) | Total: **`$390.00 USD`** | **Trampa 4 — No cuadra con lo acordado:** Agencia de diseño gráfico facturando *"Auditoría Forense de Servidores Linux"*. | `ESCALATED` (Frenado por **JEV**: Incoherencia Semántica) |
 | `INV-07` | **Captura Sintética de Chat (WhatsApp)** | AndesSoft Devs LLC | Total pedido: **`$450.00 USD`** | **Trampa 5 — Ingeniería Social / Anomalía:** El mensaje pide pagar urgente a una cuenta bancaria nueva distinta a la registrada. | `BLOCKED` (Frenado por **JEV**: `Anomaly Score = HIGH`) |
 | `INV-08` | **Factura PDF Corporativa** | LexGlobal Advisory Partners | Total: **`$1,800.00 USD`** | **Trampa 6 — Presupuesto Insuficiente:** La factura excede el saldo disponible del presupuesto mensual de la empresa. | `BLOCKED` (Regla Dura: Saldo insuficiente) |
+| `INV-09` | **Factura PDF Cloud** | CloudNova Infrastructure LLC | Total: **`$150.00 USD`** | Proyecto Lanzamiento Andino; proveedor permitido, dentro de tope y presupuesto. | `APPROVED` |
+| `INV-10` | **Factura PDF Legal** | LexGlobal Advisory Partners | Total: **`$175.00 USD`** | Proyecto Lanzamiento Andino; revisión contractual dentro del límite de $200. | `APPROVED` |
+| `INV-11` | **Factura PDF Desarrollo** | AndesSoft Devs LLC | Total: **`$250.00 USD`** | Proyecto Lanzamiento Andino; servicio válido, pero supera el tope automático propio. | `ESCALATED` |
+| `INV-12` | **Factura PDF MXN** | Nube México Servicios Digitales | Total: **`$2,555 MXN`** → **`$140 USD`** | Proyecto Expansión México; infraestructura autorizada con trazabilidad FX. | `APPROVED` |
+| `INV-13` | **Factura PDF MXN** | Fiscal MX Consultores | Total: **`$3,285 MXN`** → **`$180 USD`** | Proyecto Expansión México; servicios contables autorizados. | `APPROVED` |
+| `INV-14` | **Factura PDF MXN** | Ruta Norte Logística | Total: **`$3,650 MXN`** → **`$200 USD`** | Proyecto Expansión México; entrega de equipos dentro del presupuesto. | `APPROVED` |
+| `INV-15` | **Factura PDF MXN** | Nube México Servicios Digitales | Total: **`$2,920 MXN`** → **`$160 USD`** | Segunda factura distinta, sin duplicidad y dentro del presupuesto de México. | `APPROVED` |
 
 ---
 
@@ -150,7 +163,7 @@ Al hacer clic en cualquier factura, se abre un panel dividido de alta claridad:
 ## 📁 8. Estructura de Archivos del Proyecto
 ```text
 ├── public/
-│   └── demo-invoices/                  # Las 8 facturas 100% sintéticas (SVG/PNG/PDF)
+│   └── demo-invoices/                  # Las 15 facturas 100% sintéticas (SVG/PNG/PDF)
 ├── openclaw-skills/                    # Skills listas para importar en OpenClaw
 │   ├── blinka-ingest-invoice.skill.json
 │   ├── blinka-human-approval.skill.json
