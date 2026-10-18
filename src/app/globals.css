@@ -13,6 +13,21 @@
   padding: 16px;
 }
 
+.sidebar-credit {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.sidebar-credit a {
+  display: block;
+  width: fit-content;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .modal-card {
   width: min(520px, 100%);
   max-height: 90vh;
@@ -817,6 +832,11 @@ main > .panel {
   .sidebar .nav-bottom,
   .sidebar .ticker {
     display: flex;
+  }
+
+  .sidebar .nav-bottom {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .sidebar .nav {

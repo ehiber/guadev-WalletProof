@@ -43,6 +43,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SideNav onNavigate={() => setNavOpen(false)} />
         <FavoriteTicker />
         <div className="nav-bottom">
+          <p className="sidebar-credit">
+            Hecho con amor <span aria-hidden="true">💙</span> por <a href="https://guadev.com" target="_blank" rel="noreferrer">GuaDev.com</a>
+            <a href="https://github.com/YarumisGinanRM/YarumisGinanRM" target="_blank" rel="noreferrer">YarumisGinanRM</a>
+            <a href="https://github.com/ehiber" target="_blank" rel="noreferrer">ehiber</a>
+          </p>
           <span className="demo-label">
             <Shield className="icon" /> Datos de ejemplo
           </span>
