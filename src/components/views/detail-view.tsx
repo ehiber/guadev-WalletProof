@@ -112,9 +112,9 @@ function plainCopy(check: CheckRow, invoice: Invoice, record: AuditRecord): { la
     }
     case "duplicate":
       return {
-        label: "Factura no duplicada",
-        pass: "No hay otra factura con la misma referencia y el mismo proveedor.",
-        fail: "Ya existe otra factura con la misma referencia y el mismo proveedor.",
+        label: "Documento no duplicado",
+        pass: "No existe otra factura con el mismo número y proveedor, ni con el mismo archivo.",
+        fail: "Ya existe otra factura con el mismo número y proveedor, o con el mismo archivo.",
       };
     case "budget":
       return {
@@ -164,9 +164,9 @@ function plainCopy(check: CheckRow, invoice: Invoice, record: AuditRecord): { la
       };
     case "anomalyMedium":
       return {
-        label: "Señal de revisión",
-        pass: "No hay una señal adicional sobre este cobro.",
-        fail: "Hay una señal que requiere revisión de una persona.",
+        label: "Riesgo medio detectado",
+        pass: "No se detectaron señales adicionales de riesgo.",
+        fail: "El análisis detectó una señal de urgencia o inconsistencia. Una persona debe revisar la factura antes de autorizar el pago.",
       };
     case "contract":
       return {
@@ -176,9 +176,9 @@ function plainCopy(check: CheckRow, invoice: Invoice, record: AuditRecord): { la
       };
     case "semanticDuplicate":
       return {
-        label: "Trabajo no repetido",
-        pass: "No corresponde a un trabajo ya cobrado en otra factura.",
-        fail: "Corresponde a un trabajo ya cobrado en otra factura.",
+        label: "Cobro no repetido",
+        pass: "No se detectó el mismo servicio o entregable para el mismo periodo en otra factura.",
+        fail: "El servicio o entregable y el periodo coinciden con otra factura. Una persona debe confirmar si es un cobro repetido.",
       };
     default:
       return {
@@ -193,7 +193,7 @@ function everydayLabel(id: string): string {
   const labels: Record<string, string> = {
     extraction: "Datos de la factura",
     fx: "Conversión a dólares",
-    duplicate: "Factura no duplicada",
+    duplicate: "Documento no duplicado",
     budget: "Presupuesto disponible",
     whitelist: "Proveedor autorizado",
     project: "Proyecto identificado",
@@ -201,9 +201,9 @@ function everydayLabel(id: string): string {
     limit: "Dentro del límite",
     lineCheck: "Total consistente",
     anomalyHigh: "Cuenta de pago",
-    anomalyMedium: "Señal de revisión",
+    anomalyMedium: "Riesgo medio detectado",
     contract: "Concepto del servicio",
-    semanticDuplicate: "Trabajo no repetido",
+    semanticDuplicate: "Cobro no repetido",
     jev: "Revisión del contenido",
   };
   return labels[id] ?? "Punto por revisar";
@@ -422,6 +422,13 @@ function reviewIssues(
         detail: `${name} todavía no está autorizado para este proyecto.`,
         actions: [{ id: "add-vendor", label: "Añadir proveedor a la lista" }],
       });
+    } else if (check.id === "anomalyMedium") {
+      push({
+        key: "anomalyMedium",
+        title: "Riesgo medio detectado",
+        detail: "El análisis detectó una señal de urgencia o inconsistencia. Revisa la factura antes de autorizar el pago.",
+        actions: [{ id: "approve", label: "Autorizar excepción" }],
+      });
     } else if (check.id === "anomalyHigh" || check.id === "bankAccount") {
       const saved = card?.bankAccounts[0]?.identifier;
       push({
@@ -566,13 +573,12 @@ export function DetailView({ id }: { id: string }) {
       )
     : [];
   const issues = allIssues.filter((item) => !grantedKeys.has(item.key));
-  const passed = checks.filter((check) => check.pass);
   const rows = presentRows(checks, invoice, record, granted, touches);
   const passedRows = rows.filter((row) => row.tone === "pass");
   const exceptionRows = rows.filter((row) => row.tone === "exception");
   const adjustedRows = rows.filter((row) => row.tone === "adjusted");
   const failedRows = rows.filter((row) => row.tone === "fail");
-  const totalCriteria = passed.length + allIssues.length;
+  const totalChecks = rows.length;
   const reason = leadText(status, rows, session.human[invoice.id]?.note);
   const name = vendorDisplay(invoice.vendorId, invoice.vendorName);
   const authorized = card?.status === "authorized" && (!project || project.vendorIds.includes(invoice.vendorId));
@@ -953,7 +959,7 @@ export function DetailView({ id }: { id: string }) {
                 <h2 id="decision-heading">Resuelve lo pendiente</h2>
                 <p className="id-lead">Revisa estos puntos antes de continuar con el pago.</p>
                 <p className="id-score">
-                  {passedRows.length} de {totalCriteria} se cumplen según las reglas
+                  {passedRows.length} de {totalChecks} comprobaciones superadas
                   {adjustedRows.length > 0
                     ? ` · ${adjustedRows.length === 1 ? "1 ajuste manual" : `${adjustedRows.length} ajustes manuales`}`
                     : ""}
@@ -961,6 +967,7 @@ export function DetailView({ id }: { id: string }) {
                     ? ` · ${exceptionRows.length === 1 ? "1 excepción" : `${exceptionRows.length} excepciones`}`
                     : ""}
                 </p>
+                <p className="id-score-note">Incluye los criterios configurados, validaciones técnicas y señales del análisis.</p>
                 <div className="id-issues">
                   {issues.length === 0 ? <p className="muted">No quedan puntos pendientes. Puedes confirmar el pago.</p> : null}
                   {issues.map((issue) => (
@@ -996,7 +1003,7 @@ export function DetailView({ id }: { id: string }) {
                 {passedRows.length > 0 ? (
                   <details className="id-fold id-passed">
                     <summary>
-                      {passedRows.length === 1 ? "1 criterio cumplido · Ver detalles" : `${passedRows.length} criterios cumplidos · Ver detalles`}
+                      {passedRows.length === 1 ? "1 comprobación superada · Ver detalles" : `${passedRows.length} comprobaciones superadas · Ver detalles`}
                     </summary>
                     <div className="id-fold-body">
                       <CheckList rows={passedRows} />
@@ -1085,7 +1092,7 @@ export function DetailView({ id }: { id: string }) {
                 {passedRows.length > 0 && (adjustedRows.length > 0 || exceptionRows.length > 0) ? (
                   <details className="id-fold id-passed">
                     <summary>
-                      {passedRows.length === 1 ? "1 criterio cumplido · Ver detalles" : `${passedRows.length} criterios cumplidos · Ver detalles`}
+                      {passedRows.length === 1 ? "1 comprobación superada · Ver detalles" : `${passedRows.length} comprobaciones superadas · Ver detalles`}
                     </summary>
                     <div className="id-fold-body">
                       <CheckList rows={passedRows} />
@@ -1452,7 +1459,7 @@ function periodName(invoice: Invoice): string {
 
 function rejectHeading(row: ShownRow | undefined): string {
   const titles: Record<string, string> = {
-    duplicate: "Factura duplicada",
+    duplicate: "Documento duplicado",
     budget: "Presupuesto insuficiente",
     anomalyHigh: "Cuenta de pago no verificada",
     limit: "Importe por encima del límite",
@@ -1566,7 +1573,7 @@ function RejectedPanel({
       {hidden > 0 ? (
         <details className="id-fold id-passed">
           <summary>
-            {hidden} de {total} criterios cumplidos · Ver detalles
+            {hidden} de {total} comprobaciones superadas · Ver detalles
           </summary>
           <div className="id-fold-body">
             <CheckList rows={passedRows} />

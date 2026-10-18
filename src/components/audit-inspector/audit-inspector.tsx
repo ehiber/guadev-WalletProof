@@ -123,7 +123,7 @@ function JevBars({ jev, consulted }: { jev: JevResult | null; consulted: boolean
         {consulted ? "JEV consultado" : "JEV no consultado · snapshot en archivo"}
       </p>
       <Bar label="Coherencia con contrato" value={jev.contractCoherence.probability} />
-      <Bar label="No es duplicado semántico" value={jev.semanticDuplicate.probability} />
+      <Bar label="No es un cobro repetido" value={jev.semanticDuplicate.probability} />
       <p>
         Anomalía <strong>{jev.socialEngineeringRisk.score}</strong> · Centro {jev.costCenter.choice}
       </p>

@@ -112,7 +112,7 @@ const SHORT_REASON: Record<string, string> = {
   anomalyMedium: "Anomalía media",
   anomalyHigh: "Cuenta distinta a la contratada",
   contract: "Fuera del contrato",
-  semanticDuplicate: "Posible duplicado",
+  semanticDuplicate: "Posible cobro repetido",
 };
 
 export function shortReason(failedId: string | undefined, status: DecisionStatus): string {

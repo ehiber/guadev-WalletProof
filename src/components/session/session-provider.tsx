@@ -466,7 +466,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               rules: {
                 ...project.rules,
                 ...patch,
-                criteria: patch.criteria ? { ...project.rules.criteria, ...patch.criteria } : project.rules.criteria,
+                criteria: patch.criteria ?? project.rules.criteria,
               },
             }
           : project,

@@ -288,6 +288,7 @@ button.iv-detail{border:0;background:transparent;padding:0}
 .id-confirm-line.invalid{color:#b42318}
 .id-checks small{display:block;margin-top:2px;color:var(--muted);font-size:13px;line-height:1.45}
 .id-score{margin:18px 0 4px;font-size:14px;font-weight:650}
+.id-score-note{margin:0 0 4px;color:var(--muted);font-size:12px;line-height:1.45}
 .id-issues{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .id-issue{background:#fbf6e8;border-radius:12px;padding:14px 14px 12px}
 .id-issue h3{font-size:14px;margin-bottom:4px}

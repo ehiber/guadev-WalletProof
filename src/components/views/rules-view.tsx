@@ -7,7 +7,7 @@ import { CRITERION_LABEL, CRITERION_ORDER, criterionOf } from "@/lib/engine/crit
 import { currencyChoices } from "@/lib/engine/currency";
 import { effectiveRules } from "@/lib/mock-data/projects";
 import type { CompanyRules, CriterionAction, CriterionId, Project, ProjectRules } from "@/types/blinka";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -80,6 +80,10 @@ function seedCriterion(id: CriterionId): GroupCriterion {
   };
 }
 
+function projectCriteria(project: Project): GroupCriterion[] {
+  return CRITERION_ORDER.filter((id) => project.rules.criteria?.[id]).map(seedCriterion);
+}
+
 function seedGroups(projects: Project[]): RuleGroup[] {
   return [
     {
@@ -94,7 +98,7 @@ function seedGroups(projects: Project[]): RuleGroup[] {
       name: "Criterios del proyecto",
       scope: "project" as const,
       projectId: project.id,
-      criteria: CRITERION_ORDER.map(seedCriterion),
+      criteria: projectCriteria(project),
     })),
   ];
 }
@@ -157,7 +161,7 @@ export function RulesView() {
           name: "Criterios del proyecto",
           scope: "project" as const,
           projectId: item.id,
-          criteria: CRITERION_ORDER.map(seedCriterion),
+          criteria: projectCriteria(item),
         })),
       ];
     });
@@ -186,7 +190,7 @@ export function RulesView() {
       return;
     }
     const base = effectiveRules(session.rules, host.rules);
-    const criteria: NonNullable<ProjectRules["criteria"]> = {};
+    const criteria: NonNullable<ProjectRules["criteria"]> = { ...host.rules.criteria };
     for (const patch of patches) {
       const current = criterionOf(base, patch.id);
       const previous = host.rules.criteria?.[patch.id];
@@ -196,6 +200,13 @@ export function RulesView() {
       };
     }
     session.patchProjectRules(host.id, { criteria });
+  }
+
+  function resetProjectCriteria(ids: CriterionId[]) {
+    if (!project || ids.length === 0) return;
+    const criteria = { ...project.rules.criteria };
+    for (const id of ids) delete criteria[id];
+    session.patchProjectRules(project.id, { criteria });
   }
 
   function removeFromGroups(keys: string[]) {
@@ -271,16 +282,29 @@ export function RulesView() {
 
   function deleteCriteria(keys: string[]) {
     if (keys.length === 0) return;
-    const names = keys.map((key) => itemOf(key)?.name ?? "criterio").join(", ");
+    const items = keys.map(itemOf).filter((item): item is GroupCriterion => Boolean(item));
+    const names = items.map((item) => item.name).join(", ");
+    const builtins = items.map((item) => item.builtinId).filter((id): id is CriterionId => Boolean(id));
+    const onlyProjectOverrides = Boolean(project) && builtins.length === items.length;
     setConfirm({
-      title: keys.length === 1 ? "Eliminar criterio" : "Eliminar criterios",
+      title: onlyProjectOverrides
+        ? keys.length === 1
+          ? "Restablecer criterio general"
+          : "Restablecer criterios generales"
+        : keys.length === 1
+          ? "Eliminar criterio"
+          : "Eliminar criterios",
       message:
-        keys.length === 1
+        onlyProjectOverrides
+          ? keys.length === 1
+            ? `Se eliminará la excepción de «${names}» y el proyecto volverá a usar el criterio general.`
+            : `Se eliminarán ${keys.length} excepciones y el proyecto volverá a usar los criterios generales.`
+          : keys.length === 1
           ? `Se eliminará «${names}». Las decisiones anteriores se conservarán.`
           : `Se eliminarán ${keys.length} criterios: ${names}. Las decisiones anteriores se conservarán.`,
       onConfirm: () => {
-        const builtins = keys.map((key) => itemOf(key)?.builtinId).filter((id): id is CriterionId => Boolean(id));
-        writeCriteria(builtins.map((id) => ({ id, enabled: false })));
+        if (project) resetProjectCriteria(builtins);
+        else writeCriteria(builtins.map((id) => ({ id, enabled: false })));
         removeFromGroups(keys);
         setConfirm(null);
       },
@@ -288,21 +312,38 @@ export function RulesView() {
   }
 
   const checks = useMemo(() => {
-    const rows = visible.flatMap((group) =>
-      group.criteria
-        .filter((item) => liveState(item).enabled)
-        .map((item) => ({
-          name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name,
-          source: group.scope === "global" ? "Empresa" : (project?.name ?? "Proyecto"),
-        })),
-    );
+    const rows = project
+      ? session.rules.criteria
+          .map((item) => criterionOf(applied, item.id))
+          .filter((item) => item.enabled)
+          .map((item) => ({
+            name: CRITERION_LABEL[item.id],
+            source: project.rules.criteria?.[item.id] ? `${project.name} · Excepción` : "Empresa · Heredado",
+          }))
+      : visible.flatMap((group) =>
+          group.criteria
+            .filter((item) => liveState(item).enabled)
+            .map((item) => ({
+              name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name,
+              source: "Empresa",
+            })),
+        );
+    if (project) {
+      rows.push(
+        ...visible.flatMap((group) =>
+          group.criteria
+            .filter((item) => !item.builtinId && item.enabled)
+            .map((item) => ({ name: item.currency ? `${item.name} · Solo ${item.currency}` : item.name, source: project.name })),
+        ),
+      );
+    }
     rows.push(
       { name: "Tasa válida para la evaluación", source: "Comprobación necesaria" },
       { name: "Proveedor no excluido", source: "Comprobación necesaria" },
     );
     if (project) rows.push({ name: "Proyecto identificado y activo", source: project.name });
     return rows;
-  }, [applied, project, visible]);
+  }, [applied, project, session.rules.criteria, visible]);
 
   return (
     <div className="cr-page">
@@ -336,7 +377,11 @@ export function RulesView() {
         </label>
         <div className="cr-context-copy">
           <strong>{project ? "Criterios del proyecto" : "Criterios generales"}</strong>
-          <p>{project ? "Los criterios generales de empresa también se aplican." : "Se aplican a todas las facturas, en todos los proyectos."}</p>
+          <p>
+            {project
+              ? `Hereda ${session.rules.criteria.length} criterios generales. Aquí solo gestionas sus excepciones y criterios adicionales.`
+              : "Se aplican a todas las facturas, en todos los proyectos."}
+          </p>
         </div>
         {project ? (
           <Link className="cr-global-link" href="/proyectos">
@@ -366,16 +411,26 @@ export function RulesView() {
           <section className="panel cr-editor">
             <div className="cr-section-head">
               <div>
-                <h2>Grupos de criterios</h2>
-                <p className="cr-note">Consulta y configura los requisitos que se aplican en este contexto.</p>
+                <h2>{project ? "Excepciones y criterios adicionales" : "Grupos de criterios"}</h2>
+                <p className="cr-note">
+                  {project
+                    ? "Solo aparecen los criterios que cambian para este proyecto. Los demás mantienen la configuración general."
+                    : "Consulta y configura los requisitos que se aplican en toda la empresa."}
+                </p>
               </div>
             </div>
             {project ? (
-              <button type="button" className="cr-global-link" onClick={() => setScopeId(GLOBAL)}>
-                Ver y editar criterios generales de empresa →
-              </button>
+              <div className="cr-inheritance">
+                <div>
+                  <strong>{session.rules.criteria.length} criterios generales heredados</strong>
+                  <span>Se aplican automáticamente mientras no exista una excepción para este proyecto.</span>
+                </div>
+                <button type="button" className="cr-global-link" onClick={() => setScopeId(GLOBAL)}>
+                  Ver criterios generales →
+                </button>
+              </div>
             ) : null}
-            <div className="cr-bulk">
+            {visibleKeys.length > 0 ? <div className="cr-bulk">
               <SelectAll
                 total={visibleKeys.length}
                 picked={visibleKeys.filter((key) => picked.has(key)).length}
@@ -387,13 +442,14 @@ export function RulesView() {
                 disabled={picked.size === 0}
                 onClick={() => deleteCriteria([...picked].filter((key) => visibleKeys.includes(key)))}
               >
-                Eliminar seleccionados{picked.size ? ` (${picked.size})` : ""}
+                Quitar seleccionados{picked.size ? ` (${picked.size})` : ""}
               </button>
-            </div>
+            </div> : null}
 
             {visible.length === 0 ? (
               <div className="cr-empty">
-                <h3>No hay criterios disponibles en este contexto</h3>
+                <h3>{project ? "Este proyecto no tiene excepciones" : "No hay criterios disponibles en este contexto"}</h3>
+                {project ? <p>Usa los criterios generales de la empresa sin modificaciones.</p> : null}
               </div>
             ) : (
               visible.map((group) => {
@@ -408,7 +464,8 @@ export function RulesView() {
                         <span>
                           <strong>{group.name}</strong>
                           <small>
-                            {group.scope === "global" ? "Toda la empresa" : project?.name} · {group.criteria.length} criterios
+                            {group.scope === "global" ? "Toda la empresa" : project?.name} · {group.criteria.length}{" "}
+                            {group.scope === "global" ? "criterios" : "excepciones o adicionales"}
                           </small>
                         </span>
                       </div>
@@ -441,7 +498,12 @@ export function RulesView() {
                       </div>
                     </div>
                     <div>
-                        {group.criteria.length === 0 ? <p className="cr-empty">Este grupo aún no tiene criterios.</p> : null}
+                        {group.criteria.length === 0 ? (
+                          <div className="cr-empty">
+                            <h3>{project ? "Este proyecto no tiene excepciones" : "Este grupo aún no tiene criterios"}</h3>
+                            {project ? <p>Usa los criterios generales de la empresa sin modificaciones.</p> : null}
+                          </div>
+                        ) : null}
                         {group.criteria.map((criterion) => {
                           const state = liveState(criterion);
                           const key = `${group.id}|${criterion.key}`;
@@ -495,9 +557,18 @@ export function RulesView() {
                                   >
                                     <Pencil className="icon" aria-hidden="true" />
                                   </button>
-                                  <button type="button" className="btn cr-delete" aria-label={`Eliminar ${criterion.name}`} onClick={() => deleteCriteria([key])}>
-                                    <Trash2 className="icon" aria-hidden="true" />
-                                    <span>Eliminar</span>
+                                  <button
+                                    type="button"
+                                    className="btn cr-delete"
+                                    aria-label={project && criterion.builtinId ? `Restablecer ${criterion.name}` : `Eliminar ${criterion.name}`}
+                                    onClick={() => deleteCriteria([key])}
+                                  >
+                                    {project && criterion.builtinId ? (
+                                      <RotateCcw className="icon" aria-hidden="true" />
+                                    ) : (
+                                      <Trash2 className="icon" aria-hidden="true" />
+                                    )}
+                                    <span>{project && criterion.builtinId ? "Restablecer" : "Eliminar"}</span>
                                   </button>
                                 </div>
                               </div>
@@ -532,7 +603,7 @@ export function RulesView() {
             </div>
             <p className="cr-note">
               {project
-                ? "Estos criterios se suman a los generales de la empresa."
+                ? "La lista combina los criterios generales con las excepciones de este proyecto."
                 : "Al identificar un proyecto también se añaden su presupuesto, monedas y condiciones específicas."}
             </p>
           </section>

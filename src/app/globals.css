@@ -334,6 +334,34 @@ main > .panel {
   color: var(--warn);
 }
 
+.cr-inheritance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.cr-inheritance > div {
+  display: grid;
+  gap: 4px;
+}
+
+.cr-inheritance span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cr-inheritance .cr-global-link {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
 .cr-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 304px;
@@ -767,6 +795,11 @@ main > .panel {
 }
 
 @media (max-width: 800px) {
+  .cr-inheritance {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .cr-layout,
   .cr-form-grid {
     grid-template-columns: 1fr;

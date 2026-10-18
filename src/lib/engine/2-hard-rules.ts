@@ -39,7 +39,7 @@ export function evaluateHardRules(
         prior.documentHash === invoice.documentHash,
     );
     const reasons = [invoice.extractionNote?.trim() || "Faltan campos obligatorios."];
-    if (isExactDuplicate) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
+    if (isExactDuplicate) reasons.push("Documento duplicado: mismo número y proveedor, o mismo archivo.");
     return {
       fxSnapshot: null,
       hard: {
@@ -94,7 +94,7 @@ export function evaluateHardRules(
 
   if (fxCounts) reasons.push(`No hay tasa para ${invoice.currency} el ${asOf}.`);
   if (lineCounts && invoice.lineCheck) reasons.push(invoice.lineCheck);
-  if (duplicateCounts) reasons.push("Duplicado exacto: misma referencia y proveedor, o mismo hash de documento.");
+  if (duplicateCounts) reasons.push("Documento duplicado: mismo número y proveedor, o mismo archivo.");
   if (whitelistCounts) reasons.push("El proveedor no está activo en la whitelist.");
   if (projectCounts) reasons.push("La factura no tiene proyecto.");
   if (projectVendorCounts) reasons.push("El proveedor no está asignado a este proyecto.");

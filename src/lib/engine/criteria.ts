@@ -22,7 +22,7 @@ export const CRITERION_ORDER: CriterionId[] = [
 ];
 
 export const CRITERION_LABEL: Record<CriterionId, string> = {
-  duplicate: "Sin cobros duplicados",
+  duplicate: "Documento no duplicado",
   budget: "Presupuesto suficiente",
   anomalyHigh: "Anomalía alta o cuenta distinta",
   whitelist: "Proveedor autorizado",
@@ -32,7 +32,7 @@ export const CRITERION_LABEL: Record<CriterionId, string> = {
   limit: "Total dentro del límite automático",
   lineCheck: "Coherencia aritmética de líneas",
   contract: "Concepto acorde con el servicio",
-  semanticDuplicate: "Sin duplicado semántico",
+  semanticDuplicate: "Cobro no repetido",
 };
 
 export const DEFAULT_CRITERIA: RuleCriterion[] = [
@@ -245,7 +245,9 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
     id: "semanticDuplicate",
     label: CRITERION_LABEL.semanticDuplicate,
     pass: !semantic.enabled || unique,
-    detail: unique ? "No parece el mismo entregable de una factura previa." : "JEV marca un posible duplicado semántico.",
+    detail: unique
+      ? "No se detectó el mismo servicio o entregable para el mismo periodo en otra factura."
+      : "JEV detectó un posible cobro repetido: el servicio o entregable y el periodo coinciden con otra factura.",
     action: semantic.enabled && !unique ? semantic.action : null,
   });
 
