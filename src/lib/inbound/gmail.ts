@@ -1,8 +1,10 @@
 import { ingestIncoming, MAX_DOCUMENT_BYTES, publishVerdict } from "@/lib/engine/ingest";
 import { takeLiveSlot } from "@/lib/engine/live-budget";
-import type { GmailStatus, MailLogEntry } from "@/lib/inbound/types";
+import type { GmailStatus, MailInvoicePiece, MailLogEntry } from "@/lib/inbound/types";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
 import { arrivedInvoices, sessionRules } from "@/lib/session-inbox";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 const MAX_LIST = 20;
 const MAX_NEW = 5;
@@ -43,10 +45,13 @@ type ParsedMail = {
 
 type LabelCache = { ingested: string | null; skipped: string | null };
 
+type MailVerdict = { reason: string; invoiceIds: string[]; status: MailLogEntry["status"]; invoices?: MailInvoicePiece[] };
+
 type GmailMemory = {
   seen: Set<string>;
   labeled: Set<string>;
   messages: MailLogEntry[];
+  verdicts: Record<string, MailVerdict>;
   lastPollAt: string | null;
   lastError: string | null;
   inflight: Promise<GmailStatus> | null;
@@ -57,11 +62,49 @@ declare global {
   var blinkaGmail: GmailMemory | undefined;
 }
 
+function verdictFile(): string {
+  return path.join(process.cwd(), "data", "mail-decisions.json");
+}
+
+function readVerdicts(): Record<string, MailVerdict> {
+  try {
+    const parsed = JSON.parse(readFileSync(verdictFile(), "utf8")) as Record<string, MailVerdict>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberVerdict(id: string, verdict: MailVerdict) {
+  const current = memory();
+  current.verdicts[id] = verdict;
+  try {
+    mkdirSync(path.dirname(verdictFile()), { recursive: true });
+    writeFileSync(verdictFile(), JSON.stringify(current.verdicts));
+  } catch {
+    // The process still keeps the decision until it restarts.
+  }
+}
+
+function withVerdict(entry: MailLogEntry, verdicts: Record<string, MailVerdict>): MailLogEntry {
+  const cleaned = entry.reason && /sondeo anterior|próximo sondeo/.test(entry.reason) ? { ...entry, reason: undefined } : entry;
+  const saved = verdicts[cleaned.id];
+  if (!saved?.reason) return cleaned;
+  return {
+    ...cleaned,
+    status: saved.status,
+    reason: saved.reason,
+    invoiceIds: saved.invoiceIds.length > 0 ? saved.invoiceIds : cleaned.invoiceIds,
+    invoices: saved.invoices?.length ? saved.invoices : cleaned.invoices,
+  };
+}
+
 function memory(): GmailMemory {
   globalThis.blinkaGmail ??= {
     seen: new Set(),
     labeled: new Set(),
     messages: [],
+    verdicts: readVerdicts(),
     lastPollAt: null,
     lastError: null,
     inflight: null,
@@ -69,6 +112,7 @@ function memory(): GmailMemory {
   };
   globalThis.blinkaGmail.labeled ??= new Set();
   globalThis.blinkaGmail.labelIds ??= { ingested: null, skipped: null };
+  globalThis.blinkaGmail.verdicts ??= readVerdicts();
   return globalThis.blinkaGmail;
 }
 
@@ -89,7 +133,12 @@ export function gmailStatus(): GmailStatus {
     address: config?.user ?? null,
     lastPollAt: current.lastPollAt,
     lastError: current.lastError,
-    messages: current.messages.map((item) => ({ ...item, invoiceIds: [...item.invoiceIds], attachments: [...item.attachments] })),
+    messages: current.messages.map((item) => ({
+      ...item,
+      invoiceIds: [...item.invoiceIds],
+      attachments: [...item.attachments],
+      invoices: item.invoices?.map((invoice) => ({ ...invoice })),
+    })),
   };
 }
 
@@ -352,6 +401,7 @@ async function handleMessage(token: string, id: string, ip: string): Promise<Han
 
   const targets: Array<PayableFile | null> = parsed.files.length > 0 ? parsed.files : [null];
   const invoiceIds: string[] = [];
+  const invoices: MailInvoicePiece[] = [];
   const reasons: string[] = [];
   if (parsed.skipped.length > 0) reasons.push("Un adjunto supera 4 MB.");
   let modelAttempted = false;
@@ -367,6 +417,7 @@ async function handleMessage(token: string, id: string, ip: string): Promise<Han
         };
       }
       reasons.push(limited);
+      invoices.push({ invoiceId: "", filename: file?.filename || "Adjunto", reason: limited });
       break;
     }
     modelAttempted = true;
@@ -382,18 +433,29 @@ async function handleMessage(token: string, id: string, ip: string): Promise<Han
         existing: [...INITIAL_DATASET, ...arrivedInvoices()],
       });
       if (outcome.invoice.extractionValid === false) {
-        reasons.push(outcome.invoice.extractionNote || "La lectura no dejó un total auditable.");
+        const note = outcome.invoice.extractionNote || "La lectura no dejó un total auditable.";
+        reasons.push(note);
+        invoices.push({ invoiceId: "", filename: file?.filename || "Correo", reason: note });
         continue;
       }
       publishVerdict("email", outcome);
       invoiceIds.push(outcome.invoice.id);
+      invoices.push({
+        invoiceId: outcome.invoice.id,
+        filename: file?.filename || outcome.invoice.documentLabel || "Factura",
+        reason: outcome.record.explanation,
+      });
     } catch (error) {
       failed = true;
-      reasons.push(error instanceof Error ? error.message : "No se pudo leer el correo.");
+      const note = error instanceof Error ? error.message : "No se pudo leer el correo.";
+      reasons.push(note);
+      invoices.push({ invoiceId: "", filename: file?.filename || "Adjunto", reason: note });
     }
   }
 
   const status = invoiceIds.length > 0 ? "ingested" : failed ? "error" : "discarded";
+  const reason = invoices.length === 1 ? invoices[0]?.reason : reasons.length > 0 ? reasons.join(" ") : undefined;
+  if (invoices.length > 0 || reason) rememberVerdict(id, { reason: reason ?? "", invoiceIds, status, invoices });
   if (status !== "error") current.seen.add(id);
   return {
     entry: {
@@ -403,8 +465,9 @@ async function handleMessage(token: string, id: string, ip: string): Promise<Han
       subject: parsed.subject,
       attachments,
       status,
-      reason: reasons.length > 0 ? reasons.join(" ") : undefined,
+      reason,
       invoiceIds,
+      invoices,
     },
     stop: null,
     label: status === "ingested" ? "ingested" : status === "discarded" ? "skipped" : null,
@@ -430,7 +493,7 @@ async function runPoll(ip: string): Promise<GmailStatus> {
     for (const id of ids) {
       const prior = byId.get(id);
       if (prior && prior.status !== "pending") {
-        next.push(prior);
+        next.push(withVerdict(prior, current.verdicts));
         if ((prior.status === "ingested" || prior.status === "discarded") && !current.labeled.has(id)) {
           await markProcessedSafe(token, id, prior.status === "ingested" ? labels.ingested : labels.skipped);
           current.labeled.add(id);
@@ -439,12 +502,12 @@ async function runPoll(ip: string): Promise<GmailStatus> {
       }
       const meta = await readMeta(token, id);
       if (meta.labelIds.includes(labels.ingested)) {
-        next.push(shell(id, meta, "ingested", "Ya se leyó en un sondeo anterior."));
+        next.push(withVerdict(shell(id, meta, "ingested", ""), current.verdicts));
         current.labeled.add(id);
         continue;
       }
       if (meta.labelIds.includes(labels.skipped)) {
-        next.push(shell(id, meta, "discarded", "Se omitió en un sondeo anterior."));
+        next.push(withVerdict(shell(id, meta, "discarded", ""), current.verdicts));
         current.labeled.add(id);
         continue;
       }
@@ -471,6 +534,14 @@ async function runPoll(ip: string): Promise<GmailStatus> {
   }
   current.lastPollAt = new Date().toISOString();
   return gmailStatus();
+}
+
+export async function messageFiles(id: string): Promise<PayableFile[]> {
+  const config = gmailConfig();
+  if (!config || !id) return [];
+  const token = await accessToken(config);
+  const parsed = await readMessage(token, id);
+  return parsed.files;
 }
 
 export function pollGmail(ip: string): Promise<GmailStatus> {

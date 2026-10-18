@@ -1,5 +1,11 @@
 export type MailLogStatus = "ingested" | "discarded" | "error" | "pending";
 
+export interface MailInvoicePiece {
+  invoiceId: string;
+  filename: string;
+  reason: string;
+}
+
 export interface MailLogEntry {
   id: string;
   at: string;
@@ -9,6 +15,7 @@ export interface MailLogEntry {
   status: MailLogStatus;
   reason?: string;
   invoiceIds: string[];
+  invoices?: MailInvoicePiece[];
 }
 
 export interface GmailStatus {

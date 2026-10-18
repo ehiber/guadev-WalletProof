@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# decisiones de correo guardadas en el servidor
+/data/mail-decisions.json

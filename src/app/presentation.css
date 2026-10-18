@@ -7,3 +7,16 @@
 @media(max-width:700px){.sticky-actions{position:static}}
 
 .payment-requirements{margin:24px 0 32px;padding:24px;background:#f5f7ff;border:1px solid #cdd6f3;border-radius:16px}.payment-requirements .section-heading{margin-bottom:18px}.payment-requirements-list{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;list-style:none;padding:0;margin:0 0 20px}.payment-requirements-list li{display:flex;gap:10px;margin:0}.requirement-check{color:#2a4bd0;font-weight:700}.payment-requirements-list strong{font-size:14px}.payment-requirements-list p{font-size:13px;line-height:1.5;margin:4px 0 0;color:#526078}.payment-base{border-top:1px solid #cdd6f3;padding-top:16px;font-size:14px}.payment-requirements .small{margin-bottom:0}@media(max-width:650px){.payment-requirements{padding:18px}.payment-requirements-list{grid-template-columns:1fr;gap:16px}}
+
+.mail-toolbar .tab[aria-pressed=true]{background:transparent;color:var(--ink);border-radius:0;box-shadow:inset 0 -2px 0 var(--ink)}
+.mail-facts{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(140px,.9fr);gap:14px 24px;margin:0;align-items:start}
+.mail-facts div{display:grid;gap:2px}
+.mail-facts dt{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.mail-facts dd{margin:0;font-size:14px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.mail-invoice{display:grid;gap:10px;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.mail-invoice header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mail-invoice header a{font-size:13px}
+.mail-invoice p{margin:0;font-size:14px;line-height:1.5}
+.mail-preview{width:100%;height:360px;border:1px solid var(--line);border-radius:8px;background:#fff;object-fit:contain}
+.mail-piece-reason{margin:18px 0 0;font-size:14px;line-height:1.5}
+@media(min-width:701px){.mail-list{display:flex;flex-direction:column;overflow:hidden}.mail-scroll{max-height:882px;overflow-y:auto}}

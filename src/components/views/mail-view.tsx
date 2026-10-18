@@ -8,11 +8,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const FOLDERS: Array<{ id: "all" | MailLogStatus; label: string }> = [
-  { id: "all", label: "Recibidos" },
+  { id: "all", label: "Todos" },
   { id: "ingested", label: "Ingresados" },
   { id: "discarded", label: "Descartados" },
   { id: "error", label: "Con error" },
 ];
+
+const POLL_NOTE = /sondeo anterior|próximo sondeo/;
 
 function formatPoll(iso: string): string {
   const date = new Date(iso);
@@ -31,7 +33,7 @@ export function MailView() {
   const busy = mounted && session.mailBusy;
   const messages = (mail?.messages ?? []).filter((message) => {
     const inFolder = folder === "all" || message.status === folder;
-    const haystack = `${message.subject} ${message.from} ${message.reason ?? ""}`.toLowerCase();
+    const haystack = `${message.subject} ${message.from} ${decisionOf(message, session)}`.toLowerCase();
     return inFolder && haystack.includes(query.trim().toLowerCase());
   });
   const selected = messages.find((message) => message.id === selectedId) ?? messages[0] ?? null;
@@ -65,12 +67,27 @@ export function MailView() {
         </div>
       )}
       <div className="mail-toolbar">
-        <div className="tabs" aria-label="Carpetas">
-          {FOLDERS.map((item) => (
-            <button key={item.id} className="tab" type="button" aria-pressed={folder === item.id} onClick={() => setFolder(item.id)}>
-              {item.label}
-            </button>
-          ))}
+        <div className="tabs" role="tablist" aria-label="Filtrar correos">
+          {FOLDERS.map((item) => {
+            const count = (mail?.messages ?? []).filter((message) => item.id === "all" || message.status === item.id).length;
+            return (
+              <button
+                key={item.id}
+                className="tab"
+                type="button"
+                role="tab"
+                aria-selected={folder === item.id}
+                aria-pressed={folder === item.id}
+                onClick={() => {
+                  setFolder(item.id);
+                  setSelectedId(null);
+                }}
+              >
+                {item.label}
+                <span>{count}</span>
+              </button>
+            );
+          })}
         </div>
         <label className="search">
           <Search className="icon" />
@@ -86,7 +103,8 @@ export function MailView() {
               <p>{mounted ? "Cambia la carpeta o la búsqueda." : "Cargando el sondeo."}</p>
             </div>
           ) : (
-            messages.map((message) => (
+            <div className="mail-scroll">
+            {messages.map((message) => (
               <button
                 key={`${message.id}-${message.at}`}
                 className={`mail-item${selected?.id === message.id ? " selected" : ""}`}
@@ -94,22 +112,19 @@ export function MailView() {
                 onClick={() => setSelectedId(message.id)}
               >
                 <strong>{message.subject || "Sin asunto"}</strong>
-                <small>
-                  {message.from}
-                  {message.reason ? ` · ${message.reason}` : ""}
-                </small>
+                <small>{message.from}</small>
                 <span>
                   {statusLabel(message.status)} · {formatPoll(message.at)}
                 </span>
               </button>
-            ))
+            ))}
+            </div>
           )}
         </section>
         <section className="mail-reader">
           {selected ? <Reader message={selected} /> : <div className="empty"><h3>Sin mensaje</h3><p>Elige un correo de la lista.</p></div>}
         </section>
       </div>
-      <p className="page-footer">El correo entra por Gmail. Desde aquí no se redacta ni se envía.</p>
     </>
   );
 }
@@ -121,36 +136,125 @@ function statusLabel(status: MailLogStatus): string {
   return "Error";
 }
 
+function decisionOf(message: MailLogEntry, session: ReturnType<typeof useSession>): string {
+  const own = (message.invoices ?? [])
+    .map((piece) => piece.reason)
+    .filter((reason) => reason && !POLL_NOTE.test(reason));
+  if (own.length > 0) return own.join(" ");
+  const linked = message.invoiceIds.flatMap((id) => {
+    const invoice = session.invoices.find((item) => item.id === id);
+    const record = session.records.find((item) => item.invoiceId === id);
+    return invoice && record ? [session.explanationOf(invoice, record)] : [];
+  });
+  if (linked.length > 0) return linked.join(" ");
+  if (message.reason && !POLL_NOTE.test(message.reason)) return message.reason;
+  if (message.status === "pending") return "Todavía no hay decisión. El motor no ha leído este correo.";
+  if (message.status === "error") return "No se pudo leer el correo, así que no hay decisión.";
+  if (message.status === "discarded") return "No se ingresó como factura. El motivo concreto no quedó guardado.";
+  return "La decisión se tomó antes de empezar a guardarla. A partir del próximo correo, el motivo queda fijo la primera vez que el motor lo emite.";
+}
+
+type MailFile = { name: string; mime: string; href: string };
+
 function Reader({ message }: { message: MailLogEntry }) {
   const session = useSession();
-  const previews = message.invoiceIds
-    .map((id) => session.invoices.find((invoice) => invoice.id === id))
-    .filter((invoice) => invoice && hasFilePreview(invoice.documentPath));
+  const pieces = message.invoices?.length
+    ? message.invoices
+    : message.invoiceIds.map((id, index) => ({
+        invoiceId: id,
+        filename: message.attachments[index] || id,
+        reason: message.invoiceIds.length === 1 ? decisionOf(message, session) : "",
+      }));
+  const needsFiles = pieces.length === 0 || pieces.some((piece) => {
+    const invoice = session.invoices.find((item) => item.id === piece.invoiceId);
+    return !invoice || !hasFilePreview(invoice.documentPath);
+  });
+  const files = useMessageFiles(message.id, needsFiles);
+  const cards = pieces.length > 0
+    ? pieces
+    : files.map((file) => ({ invoiceId: "", filename: file.name, reason: "" }));
   return (
     <>
       <div className="section-heading">
         <div>
           <h2>{message.subject || "Sin asunto"}</h2>
-          {message.invoiceIds.map((id) => (
-            <Link key={id} href={`/facturas/${id}`}>
-              Ver factura {id}
-            </Link>
-          ))}
         </div>
         <span className={`badge ${message.status === "ingested" ? "approved" : message.status === "error" ? "blocked" : "review"}`}>
           {statusLabel(message.status)}
         </span>
       </div>
       <article className="mail-message">
-        <header>
-          <strong>{message.from}</strong>
-          <small>{formatPoll(message.at)}</small>
-        </header>
-        <small>Entrada de Gmail · {statusLabel(message.status)}</small>
-        <p>{message.reason || "El sondeo no dejó un motivo adicional."}</p>
-        {message.attachments.length > 0 ? <p>Adjuntos: {message.attachments.join(", ")}</p> : null}
-        {previews.map((invoice) => (invoice ? <SyntheticDocument key={invoice.id} invoice={invoice} /> : null))}
+        <dl className="mail-facts">
+          <div>
+            <dt>Remitente</dt>
+            <dd>{message.from}</dd>
+          </div>
+          <div>
+            <dt>Recibido</dt>
+            <dd>{formatPoll(message.at)}</dd>
+          </div>
+        </dl>
+        {cards.length === 0 ? (
+          <p className="mail-piece-reason">{decisionOf(message, session)}</p>
+        ) : (
+          cards.map((piece, index) => {
+            const invoice = session.invoices.find((item) => item.id === piece.invoiceId);
+            const record = piece.invoiceId ? session.records.find((item) => item.invoiceId === piece.invoiceId) : undefined;
+            const reason =
+              invoice && record
+                ? session.explanationOf(invoice, record)
+                : piece.reason ||
+                  (cards.length > 1
+                    ? "Esta factura se gestiona sola. Su motivo no quedó guardado en este correo."
+                    : decisionOf(message, session));
+            const file = files.find((item) => item.name === piece.filename) ?? files[index];
+            return (
+              <section key={`${piece.invoiceId || piece.filename}-${index}`} className="mail-invoice">
+                <header>
+                  <strong>{piece.filename || `Factura ${index + 1}`}</strong>
+                  {piece.invoiceId ? <Link href={`/facturas/${piece.invoiceId}`}>Abrir ficha</Link> : null}
+                </header>
+                <p>{reason}</p>
+                {invoice ? <SyntheticDocument invoice={invoice} /> : file ? <FilePreview file={file} /> : null}
+              </section>
+            );
+          })
+        )}
       </article>
     </>
   );
+}
+
+function useMessageFiles(id: string, enabled: boolean): MailFile[] {
+  const [files, setFiles] = useState<MailFile[]>([]);
+  useEffect(() => {
+    if (!enabled) {
+      setFiles([]);
+      return;
+    }
+    let cancelled = false;
+    setFiles([]);
+    void fetch(`/api/inbound/gmail/files?message=${encodeURIComponent(id)}`)
+      .then((response) => (response.ok ? response.json() : { files: [] }))
+      .then((body: { files?: MailFile[] }) => {
+        if (!cancelled) setFiles(body.files ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setFiles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, enabled]);
+  return files;
+}
+
+function FilePreview({ file }: { file: MailFile }) {
+  if (file.mime === "application/pdf") {
+    return <iframe title={file.name} src={file.href} className="mail-preview" />;
+  }
+  if (file.mime.startsWith("image/")) {
+    return <img alt={file.name} src={file.href} className="mail-preview" />;
+  }
+  return null;
 }
