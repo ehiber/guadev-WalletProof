@@ -91,6 +91,7 @@ type SessionValue = {
   refreshMail: () => Promise<void>;
   runLive: (ids: string[]) => Promise<void>;
   reset: () => void;
+  resetCount: number;
   upload: (file: File) => Promise<Invoice | null>;
   exportCsv: () => void;
   notifyOpenClaw: (invoice: Invoice, record: AuditRecord) => Promise<void>;
@@ -123,6 +124,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [mailBusy, setMailBusy] = useState(false);
   const [vendorCards, setVendorCards] = useState<VendorCard[]>(() => seedVendorCards());
   const [fxOverrides, setFxOverrides] = useState<FxOverride[]>([]);
+  const [resetCount, setResetCount] = useState(0);
   const storedKeys = useSyncExternalStore(subscribeKeys, readStoredKeys, () => "");
   const keys = useMemo(() => parseKeys(storedKeys), [storedKeys]);
   const previewUrls = useRef<string[]>([]);
@@ -344,6 +346,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLiveError(null);
     setVendorCards(seedVendorCards());
     setFxOverrides([]);
+    setResetCount((current) => current + 1);
     void fetch("/api/invoices", { method: "DELETE" });
     void fetch("/api/webhooks/openclaw", {
       method: "DELETE",
@@ -423,7 +426,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const notifyOpenClaw = useCallback(
     async (invoice: Invoice, record: AuditRecord) => {
-      await fetch("/api/webhooks/openclaw", {
+      const response = await fetch("/api/webhooks/openclaw", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -439,6 +442,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           },
         }),
       });
+      if (!response.ok) {
+        setLiveError("No se pudo avisar a OpenClaw.");
+        return;
+      }
       setDrawerOpen(true);
     },
     [live],
@@ -523,6 +530,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     refreshMail,
     runLive,
     reset,
+    resetCount,
     upload,
     exportCsv,
     notifyOpenClaw,

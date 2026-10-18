@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="contenido">{children}</main>
       </div>
       <ByokModal open={session.byokOpen} keys={session.keys} onClose={() => session.setByokOpen(false)} onSave={session.saveKeys} />
-      <OpenClawDrawer open={session.drawerOpen} onClose={() => session.setDrawerOpen(false)} />
+      <OpenClawDrawer key={session.resetCount} open={session.drawerOpen} onClose={() => session.setDrawerOpen(false)} />
     </>
   );
 }

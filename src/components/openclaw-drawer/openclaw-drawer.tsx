@@ -1,135 +1,190 @@
 "use client";
 
-import { OPENCLAW_DEMO_SECRET, type OpenClawEvent } from "@/lib/openclaw/constants";
-import { useEffect, useState } from "react";
+import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
+import { Paperclip, SendHorizontal } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+
+function allowedFile(file: File): boolean {
+  if (ACCEPT.split(",").includes(file.type)) return true;
+  return /\.(pdf|png|jpe?g|webp)$/i.test(file.name);
+}
+const MAX_BYTES = 4 * 1024 * 1024;
+const ACCEPT = "application/pdf,image/png,image/jpeg,image/webp";
+const INVOICE_ONLY_REPLY = "Este chat solo recibe facturas. Envía el texto del cobro o adjunta el PDF o la foto.";
+
+type Bubble = {
+  id: string;
+  role: "out" | "in";
+  text: string;
+  fileName?: string;
+  invoiceId?: string;
+};
+
+function receipt(invoiceId: string | undefined): string {
+  if (!invoiceId) return "Recibido. Quedó en la bandeja.";
+  return `Recibido. Quedó en la bandeja como ${invoiceId}.`;
+}
+
+async function filePayload(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("read"));
+    reader.readAsDataURL(file);
+  });
+  const comma = dataUrl.indexOf(",");
+  return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+}
 
 export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [events, setEvents] = useState<OpenClawEvent[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [bubbles, setBubbles] = useState<Bubble[]>([
+    {
+      id: "welcome",
+      role: "in",
+      text: "Escríbeme una factura o adjunta el PDF o la foto. Si no es un cobro, no entra a la bandeja.",
+    },
+  ]);
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    async function load() {
-      const response = await fetch("/api/webhooks/openclaw", {
-        headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
-      });
-      if (!response.ok) {
-        if (!cancelled) setError("No se pudo leer la bitácora.");
-        return;
-      }
-      const body = (await response.json()) as { events: OpenClawEvent[] };
-      if (!cancelled) {
-        setEvents(body.events);
-        setError(null);
-      }
-    }
-    void load();
-    const timer = window.setInterval(() => void load(), 2000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [open]);
+    const thread = threadRef.current;
+    if (!thread) return;
+    thread.scrollTop = thread.scrollHeight;
+  }, [bubbles, open]);
 
   if (!open) return null;
 
-  async function send(kind: OpenClawEvent["kind"], invoiceId: string, payload: unknown) {
-    const response = await fetch("/api/webhooks/openclaw", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-openclaw-secret": OPENCLAW_DEMO_SECRET,
-      },
-      body: JSON.stringify({ kind, invoiceId, payload }),
-    });
-    const body = (await response.json().catch(() => null)) as { error?: string; event?: OpenClawEvent } | null;
-    if (!response.ok) {
-      setError(body?.error ?? "El webhook rechazó el evento.");
-    }
-    const listed = await fetch("/api/webhooks/openclaw", {
-      headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
-    });
-    if (listed.ok) {
-      const log = (await listed.json()) as { events: OpenClawEvent[] };
-      setEvents(log.events);
-    }
+  function push(bubble: Bubble) {
+    setBubbles((current) => [...current, bubble]);
   }
 
-  async function sendEmail() {
-    const response = await fetch("/api/inbound/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        from: "billing@cloudnova.example",
-        subject: "Factura sintética CN-2026-1099",
-        text: "CloudNova Infrastructure LLC. Número CN-2026-1099. Fecha 2026-10-16. Subtotal 300 USD. Impuesto 0. Total 300 USD. Descripción: almacenamiento adicional de octubre 2026.",
-      }),
+  async function submit() {
+    const message = text.trim();
+    const selected = file;
+    if (busy || (!message && !selected)) return;
+    if (selected && selected.size > MAX_BYTES) {
+      push({ id: crypto.randomUUID(), role: "in", text: INVOICE_ONLY_REPLY });
+      return;
+    }
+    if (selected && !allowedFile(selected)) {
+      push({ id: crypto.randomUUID(), role: "in", text: INVOICE_ONLY_REPLY });
+      return;
+    }
+    setText("");
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+    push({
+      id: crypto.randomUUID(),
+      role: "out",
+      text: message || selected?.name || "Adjunto",
+      fileName: selected?.name,
     });
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    if (!response.ok) setError(body?.error ?? "El correo no entró.");
-    const listed = await fetch("/api/webhooks/openclaw", {
-      headers: { "x-openclaw-secret": OPENCLAW_DEMO_SECRET },
-    });
-    if (listed.ok) {
-      const log = (await listed.json()) as { events: OpenClawEvent[] };
-      setEvents(log.events);
+    setBusy(true);
+    try {
+      const payload: Record<string, string> = { channel: "whatsapp", text: message };
+      if (selected) {
+        payload.media = await filePayload(selected);
+        payload.mime = selected.type;
+        payload.filename = selected.name;
+      }
+      const response = await fetch("/api/webhooks/openclaw", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-openclaw-secret": OPENCLAW_DEMO_SECRET,
+        },
+        body: JSON.stringify({ kind: "ingest", payload }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        accepted?: boolean;
+        reply?: string;
+        invoice?: { id?: string };
+      } | null;
+      if (body?.accepted === false) {
+        push({ id: crypto.randomUUID(), role: "in", text: INVOICE_ONLY_REPLY });
+        return;
+      }
+      if (!response.ok) {
+        push({ id: crypto.randomUUID(), role: "in", text: "No se pudo entregar. Reenvía el archivo." });
+        return;
+      }
+      const invoiceId = body?.invoice?.id;
+      push({ id: crypto.randomUUID(), role: "in", text: receipt(invoiceId), invoiceId });
+    } catch {
+      push({ id: crypto.randomUUID(), role: "in", text: "No se pudo entregar. Reenvía el archivo." });
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <aside className="drawer">
-      <header>
+    <aside className="drawer wa-drawer" aria-label="Chat de facturas">
+      <header className="wa-head">
         <div>
-          <h2>OpenClaw</h2>
-          <p className="budget-note">Bitácora viva de este proceso</p>
+          <h2>Blinka Guard</h2>
+          <p className="budget-note">WhatsApp de demo · solo facturas</p>
         </div>
         <button className="btn sm" onClick={onClose} type="button">
           Cerrar
         </button>
       </header>
-      <div className="drawer-actions">
-        <button
-          className="btn"
-          onClick={() =>
-            void send("ingest", "", {
-              channel: "whatsapp",
-              text: "AndesSoft Devs LLC. Factura CHAT-URG-450. Fecha 2026-10-16. Subtotal 450 USD, impuesto 0, total 450 USD. Pago urgente a la cuenta nueva ••••3310, distinta de la contratada.",
-            })
-          }
-          type="button"
-        >
-          Simular factura
-        </button>
-        <button className="btn" onClick={() => void sendEmail()} type="button">
-          Simular correo
-        </button>
-        <button
-          className="btn"
-          onClick={() =>
-            void send("approval", "INV-03", {
-              decision: "APPROVED",
-              note: "Excepción de demo firmada por el CFO.",
-            })
-          }
-          type="button"
-        >
-          Simular aprobación
-        </button>
-      </div>
-      <div className="drawer-log">
-        {error ? <p className="notice error">{error}</p> : null}
-        {events.length === 0 ? <p className="budget-note">Todavía no hay eventos.</p> : null}
-        {events.map((event) => (
-          <article key={event.id} className="provider-note">
-            <strong>
-              {event.kind} · {event.invoiceId || "sin factura"}
-            </strong>
-            <small>{event.at}</small>
-            <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+      <div className="wa-thread" ref={threadRef}>
+        {bubbles.map((bubble) => (
+          <article className={`wa-bubble ${bubble.role}`} key={bubble.id}>
+            {bubble.fileName ? <strong>{bubble.fileName}</strong> : null}
+            <p>
+              {bubble.invoiceId ? (
+                <Link href={`/facturas/${encodeURIComponent(bubble.invoiceId)}`}>{bubble.text}</Link>
+              ) : (
+                bubble.text
+              )}
+            </p>
           </article>
         ))}
+        {busy ? <p className="wa-pending">Revisando si es una factura…</p> : null}
       </div>
+      <form
+        className="wa-compose"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <input
+          accept={ACCEPT}
+          className="visually-hidden"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          ref={fileRef}
+          type="file"
+        />
+        <button aria-label="Adjuntar factura" className="btn sm" onClick={() => fileRef.current?.click()} type="button">
+          <Paperclip className="icon" />
+        </button>
+        <label className="wa-field">
+          <span className="visually-hidden">Mensaje</span>
+          <textarea
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder="Texto de la factura"
+            rows={2}
+            value={text}
+          />
+        </label>
+        <button aria-label="Enviar" className="btn primary sm" disabled={busy || (!text.trim() && !file)} type="submit">
+          <SendHorizontal className="icon" />
+        </button>
+      </form>
+      {file ? <p className="wa-file">{file.name}</p> : null}
     </aside>
   );
 }

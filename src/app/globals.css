@@ -28,9 +28,100 @@
   width: min(420px, 100%);
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   background: var(--surface);
   border-left: 1px solid var(--line);
+}
+
+.wa-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wa-thread {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: #eef1f7;
+}
+
+.wa-bubble {
+  max-width: 86%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.wa-bubble p {
+  margin: 0;
+}
+
+.wa-bubble strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.wa-bubble.in {
+  background: #fff;
+  border-bottom-left-radius: 4px;
+}
+
+.wa-bubble.out {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.wa-bubble a {
+  color: inherit;
+}
+
+.wa-pending,
+.wa-file {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.wa-pending {
+  padding: 0 16px 12px;
+  background: #eef1f7;
+}
+
+.wa-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.wa-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-field textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 120px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .drawer header,
