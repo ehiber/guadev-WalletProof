@@ -29,12 +29,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         Saltar al contenido
       </a>
       <aside className={navOpen ? "sidebar ws-open" : "sidebar"}>
-        <Link href="/" className="brand" aria-label="Blinka Guard, inicio">
+        <Link href="/" className="brand" aria-label="Wallet Proof, inicio">
           <span className="brand-mark">
             <Shield className="icon" />
           </span>
           <span className="brand-name">
-            blinka<span>GUARD</span>
+            Wallet<span>Proof</span>
           </span>
         </Link>
         <div className="org">
@@ -69,32 +69,33 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="top-actions">
             <span className="nav-tip">
-              <button className="text-btn" type="button" onClick={session.reset}>
+              <button className="text-btn" type="button" aria-describedby="tip-restaurar" onClick={session.reset}>
                 <RotateCcw className="icon" /> Restaurar
               </button>
-              <span className="nav-tip-bubble" role="tooltip">
-                Vuelve el panel con la data por defecto.
+              <span id="tip-restaurar" className="nav-tip-bubble" role="tooltip">
+                Restablece todos los datos de la demo a su estado inicial.
               </span>
             </span>
             <span className="nav-tip">
-              <button className="text-btn" type="button" onClick={() => session.setDrawerOpen(true)}>
+              <button className="text-btn" type="button" aria-describedby="tip-openclaw" onClick={() => session.setDrawerOpen(true)}>
                 <MessagesSquare className="icon" /> OpenClaw
               </button>
-              <span className="nav-tip-bubble" role="tooltip">
-                Ventana de chat que simula el puente de WhatsApp u otro canal con OpenClaw.
+              <span id="tip-openclaw" className="nav-tip-bubble" role="tooltip">
+                Abre el chat que simula las notificaciones enviadas por WhatsApp u otros canales.
               </span>
             </span>
             <span className="nav-tip align-end">
               <button
                 className="text-btn"
                 type="button"
+                aria-describedby="tip-revisar-ia"
                 disabled={session.running}
                 onClick={() => void session.runLive(session.invoices.map((invoice) => invoice.id))}
               >
                 <RefreshCw className="icon" /> {session.running ? "Revisando…" : "Revisar con IA"}
               </button>
-              <span className="nav-tip-bubble" role="tooltip">
-                Lee otra vez las facturas y escribe una explicación clara de cada decisión.
+              <span id="tip-revisar-ia" className="nav-tip-bubble" role="tooltip">
+                Vuelve a analizar todas las facturas y actualiza la explicación de cada decisión.
               </span>
             </span>
             <div className="identity">

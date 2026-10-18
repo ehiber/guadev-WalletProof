@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Blinka Guard",
+  title: "Wallet Proof",
   description: "Sandbox de cuentas por pagar de NovaLatam Holdings LLC.",
 };
 

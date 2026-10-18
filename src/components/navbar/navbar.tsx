@@ -29,7 +29,7 @@ export function Navbar({
             <Shield className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-semibold tracking-tight text-[#121826]">Blinka Guard</p>
+            <p className="text-sm font-semibold tracking-tight text-[#121826]">Wallet Proof</p>
             <p className="text-xs text-[#5c6575]">NovaLatam Holdings LLC</p>
           </div>
         </div>

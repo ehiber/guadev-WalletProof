@@ -39,7 +39,7 @@ export function escalationNotice(input: {
 }): string {
   const note = input.explanation.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, 500);
   const amount = Number(input.totalPayableUsd.toFixed(2));
-  return `Aviso de Blinka Guard. Factura ${input.invoiceId} quedó ${input.status}. Total USD ${amount}. ${note} No apruebes, no rechaces y no calcules. Confirma solo que el aviso quedó recibido.`;
+  return `Aviso de Wallet Proof. Factura ${input.invoiceId} quedó ${input.status}. Total USD ${amount}. ${note} No apruebes, no rechaces y no calcules. Confirma solo que el aviso quedó recibido.`;
 }
 
 export function openClawGatewayReady(): boolean {

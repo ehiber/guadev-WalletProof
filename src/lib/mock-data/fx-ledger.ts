@@ -2,8 +2,8 @@ import type { FxRate } from "@/types/blinka";
 
 export const DEMO_ISSUE_DATE = "2026-10-16";
 
-const SOURCE = "Libro sintético Blinka Guard — tasa fija de demo";
-const CRYPTO_SOURCE = "Libro sintético Blinka Guard — cripto de demo";
+const SOURCE = "Libro sintético Wallet Proof — tasa fija de demo";
+const CRYPTO_SOURCE = "Libro sintético Wallet Proof — cripto de demo";
 
 export const FIAT_CODES = ["EUR", "BRL", "ARS", "PEN", "CRC", "COP", "MXN", "CLP", "BOB", "ZAR", "VES"] as const;
 export const CRYPTO_CODES = ["BTC", "ETH", "USDT", "USDC"] as const;

@@ -126,7 +126,7 @@ export function OpenClawDrawer({ open, onClose }: { open: boolean; onClose: () =
     <aside className="drawer wa-drawer" aria-label="Chat de facturas">
       <header className="wa-head">
         <div>
-          <h2>Blinka Guard</h2>
+          <h2>Wallet Proof</h2>
           <p className="budget-note">WhatsApp de demo · solo facturas</p>
         </div>
         <button className="btn sm" onClick={onClose} type="button">

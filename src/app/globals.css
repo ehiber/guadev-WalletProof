@@ -244,6 +244,7 @@ main > .panel {
 }
 
 .nav-tip-bubble {
+  display: none;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -261,8 +262,7 @@ main > .panel {
   line-height: 1.45;
   text-align: left;
   pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
+  white-space: normal;
 }
 
 .nav-tip.align-end .nav-tip-bubble {
@@ -272,8 +272,7 @@ main > .panel {
 
 .nav-tip:hover .nav-tip-bubble,
 .nav-tip:focus-within .nav-tip-bubble {
-  opacity: 1;
-  visibility: visible;
+  display: block;
 }
 
 .cr-page .page-heading {
