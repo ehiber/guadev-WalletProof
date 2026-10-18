@@ -6,13 +6,16 @@ import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { loadFxMarket } from "@/lib/engine/fx-market";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
+import { evaluateBatch } from "@/lib/engine/pipeline";
+import { assignProject } from "@/lib/engine/project-matcher";
+import { effectiveRules, INITIAL_PROJECTS, scopeFor } from "@/lib/mock-data/projects";
 import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { sha256Bytes, sha256Hex } from "@/lib/engine/sha256";
 import { matchVendor } from "@/lib/mock-data/company-rules";
 import { rememberDocument } from "@/lib/inbound/documents";
 import { pushOpenClawEvent } from "@/lib/openclaw/constants";
 import { rememberArrival } from "@/lib/session-inbox";
-import type { AuditRecord, CompanyRules, DocumentKind, FxRate, IntakeChannel, Invoice, PriorDocument } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DocumentKind, FxRate, IntakeChannel, Invoice, PriorDocument, Project } from "@/types/blinka";
 
 export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
@@ -56,11 +59,14 @@ function priorState(
   rules: CompanyRules,
   asOf: string,
   market: FxRate[],
-): { priors: PriorDocument[]; spent: number } {
+  projects?: Project[],
+): { priors: PriorDocument[]; spent: number; spentByProject: Record<string, number> } {
   const priors: PriorDocument[] = [];
   let spent = 0;
-  for (const invoice of existing) {
-    const record = evaluateInvoice(invoice, rules, priors, spent, invoice.jevSnapshot, [], asOf, market);
+  const spentByProject: Record<string, number> = {};
+  const records = evaluateBatch(existing, rules, [], asOf, market, undefined, projects);
+  for (const [index, invoice] of existing.entries()) {
+    const record = records[index];
     priors.push({
       invoiceNumber: invoice.invoiceNumber,
       vendorId: invoice.vendorId,
@@ -68,9 +74,10 @@ function priorState(
     });
     if (record.finalStatus === "APPROVED") {
       spent = Number((spent + record.totalPayableUsd).toFixed(2));
+      if (invoice.projectId) spentByProject[invoice.projectId] = Number(((spentByProject[invoice.projectId] ?? 0) + record.totalPayableUsd).toFixed(2));
     }
   }
-  return { priors, spent };
+  return { priors, spent, spentByProject };
 }
 
 function kindFor(channel: IngestChannel, mime?: string): { documentKind: DocumentKind; documentLabel: string } {
@@ -122,6 +129,7 @@ function unreadableOutcome(
     mime?: string;
     rules: CompanyRules;
     existing: Invoice[];
+    projects?: Project[];
   },
   read: Extract<DocumentRead, { ok: false }>,
   extractMs: number,
@@ -155,8 +163,10 @@ function unreadableOutcome(
     extractionNote: read.reason,
     jevSnapshot: null,
   };
-  const { priors, spent } = priorState(input.existing, input.rules, asOf, market);
-  const record = evaluateInvoice(invoice, input.rules, priors, spent, null, [], asOf, market);
+  const projects = input.projects ?? INITIAL_PROJECTS;
+  const { priors, spent, spentByProject } = priorState(input.existing, input.rules, asOf, market, projects);
+  const resolved = scopeFor(invoice, projects, invoice.projectId ? (spentByProject[invoice.projectId] ?? 0) : 0);
+  const record = evaluateInvoice(invoice, effectiveRules(input.rules, resolved.rulesOverlay), priors, spent, null, [], asOf, market, undefined, resolved.scope);
   return {
     invoice,
     record,
@@ -202,6 +212,7 @@ function invoiceFromPartial(
     totalPayable: partial.totalPayable,
     documentHash: hash,
     description: partial.description?.trim() || "Documento recibido con campos incompletos.",
+    projectReference: partial.projectReference,
     documentKind: visual.documentKind,
     documentLabel: "Documento recibido",
     documentPath: "",
@@ -228,6 +239,7 @@ export async function ingestIncoming(input: {
   rules: CompanyRules;
   keys: ByokKeys;
   existing: Invoice[];
+  projects?: Project[];
 }): Promise<IngestOutcome> {
   if (input.bytes && input.bytes.byteLength > MAX_DOCUMENT_BYTES) {
     throw new Error("El archivo supera 4 MB.");
@@ -250,7 +262,7 @@ export async function ingestIncoming(input: {
   const auditable = !read.ok && payableIsAuditable(read.partial) ? read.partial : null;
   const vendor = read.ok ? matchVendor(read.extraction.vendorName) : null;
   const visual = kindFor(input.channel, input.mime);
-  const invoice: Invoice = read.ok
+  let invoice: Invoice = read.ok
     ? {
         id: receivedId(input.channel, hash, input.existing),
         invoiceNumber: read.extraction.invoiceNumber,
@@ -263,6 +275,7 @@ export async function ingestIncoming(input: {
         totalPayable: read.extraction.totalPayable,
         documentHash: hash,
         description: read.extraction.description,
+        projectReference: read.extraction.projectReference,
         documentKind: visual.documentKind,
         documentLabel: visual.documentLabel,
         documentPath: "",
@@ -279,9 +292,13 @@ export async function ingestIncoming(input: {
     ? "Extracción Zod válida."
     : "Documento recibido. El total impreso entra a las reglas.";
 
-  const { priors, spent } = priorState(input.existing, input.rules, asOf, market);
+  const projects = input.projects ?? INITIAL_PROJECTS;
+  invoice = assignProject(invoice, projects);
+  const { priors, spent, spentByProject } = priorState(input.existing, input.rules, asOf, market, projects);
+  const resolved = scopeFor(invoice, projects, invoice.projectId ? (spentByProject[invoice.projectId] ?? 0) : 0);
+  const appliedRules = effectiveRules(input.rules, resolved.rulesOverlay);
   const rulesStarted = performance.now();
-  const { hard } = evaluateHardRules(invoice, input.rules, priors, spent, [], asOf, market);
+  const { hard } = evaluateHardRules(invoice, appliedRules, priors, spent, [], asOf, market, undefined, resolved.scope);
   const rulesMs = Math.max(1, Math.round(performance.now() - rulesStarted));
 
   let jevTiming: LayerTiming = {
@@ -306,7 +323,7 @@ export async function ingestIncoming(input: {
     };
   }
 
-  const record = evaluateInvoice(invoice, input.rules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market);
+  const record = evaluateInvoice(invoice, appliedRules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market, undefined, resolved.scope);
   const explainStarted = performance.now();
   const explanation = await explainDecision(record, keys);
   const outcome: IngestOutcome = {

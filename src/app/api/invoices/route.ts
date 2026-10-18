@@ -1,7 +1,7 @@
 import { ingestIncoming, MAX_DOCUMENT_BYTES, publishVerdict } from "@/lib/engine/ingest";
 import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
 import { normalizeKeys } from "@/lib/engine/model-provider";
-import { parseInvoices, parseRules } from "@/lib/engine/schemas";
+import { parseInvoices, parseProjects, parseRules } from "@/lib/engine/schemas";
 import { clearSession, listArrivals, publishRules, sessionHuman } from "@/lib/session-inbox";
 
 export async function GET() {
@@ -24,7 +24,9 @@ export async function POST(request: Request) {
   }
   const rules = parseRules(readJson(form?.get("rules")));
   const existing = parseInvoices(readJson(form?.get("invoices")) ?? []);
-  if (!rules || !existing) {
+  const rawProjects = readJson(form?.get("projects"));
+  const projects = rawProjects === undefined ? undefined : parseProjects(rawProjects);
+  if (!rules || !existing || (rawProjects !== undefined && !projects)) {
     return Response.json({ error: "La bandeja o las reglas no son válidas." }, { status: 400 });
   }
   if (existing.length >= 24) {
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
       rules,
       keys,
       existing,
+      projects: projects ?? undefined,
     });
     publishVerdict("pdf", outcome);
     return Response.json(outcome);

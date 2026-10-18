@@ -1,7 +1,7 @@
 import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
 import { runLiveInvoices } from "@/lib/engine/live-pipeline";
 import { normalizeKeys } from "@/lib/engine/model-provider";
-import { parseInvoices, parseRules } from "@/lib/engine/schemas";
+import { parseInvoices, parseProjects, parseRules } from "@/lib/engine/schemas";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -9,6 +9,7 @@ const bodySchema = z.object({
   rules: z.unknown(),
   keys: z.unknown().optional(),
   invoices: z.unknown().optional(),
+  projects: z.unknown().optional(),
 });
 
 export async function POST(request: Request) {
@@ -24,12 +25,16 @@ export async function POST(request: Request) {
   if (parsed.data.invoices !== undefined && !invoices) {
     return Response.json({ error: "La lista de facturas no es válida." }, { status: 400 });
   }
+  const projects = parsed.data.projects === undefined ? undefined : parseProjects(parsed.data.projects);
+  if (parsed.data.projects !== undefined && !projects) {
+    return Response.json({ error: "La lista de proyectos no es válida." }, { status: 400 });
+  }
   const limited = takeLiveSlot(clientIp(request));
   if (limited) {
     return Response.json({ error: limited }, { status: 429 });
   }
 
-  const outcome = await runLiveInvoices(parsed.data.ids, rules, normalizeKeys(parsed.data.keys), invoices ?? undefined);
+  const outcome = await runLiveInvoices(parsed.data.ids, rules, normalizeKeys(parsed.data.keys), invoices ?? undefined, projects ?? undefined);
 
   return Response.json({
     invoices: outcome.invoices,

@@ -5,9 +5,11 @@ import { explainDecision } from "@/lib/engine/4-explainer";
 import { resolveKeys, type ByokKeys } from "@/lib/engine/model-provider";
 import { loadFxMarket } from "@/lib/engine/fx-market";
 import { evaluateInvoice } from "@/lib/engine/pipeline";
+import { assignProject } from "@/lib/engine/project-matcher";
 import { paymentDate } from "@/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "@/lib/mock-data/initial-dataset";
-import type { AuditRecord, CompanyRules, Invoice, PriorDocument } from "@/types/blinka";
+import { effectiveRules, INITIAL_PROJECTS, scopeFor } from "@/lib/mock-data/projects";
+import type { AuditRecord, CompanyRules, Invoice, PriorDocument, Project } from "@/types/blinka";
 
 export interface LayerTiming {
   layer: "extract" | "rules" | "jev" | "explain";
@@ -38,12 +40,14 @@ export async function runLiveInvoices(
   rules: CompanyRules,
   override: ByokKeys,
   source?: Invoice[],
+  projectSource?: Project[],
 ): Promise<{ results: LiveInvoiceResult[]; records: AuditRecord[]; invoices: Invoice[] }> {
   const keys = resolveKeys(override);
   const asOf = paymentDate();
   const market = await loadFxMarket(asOf);
   const wanted = new Set(ids);
   const invoices = (source ?? INITIAL_DATASET).map((invoice) => ({ ...invoice }));
+  const projects = projectSource ?? INITIAL_PROJECTS;
   const prepared = new Map<string, Awaited<ReturnType<typeof extractInvoice>>>();
   const extractMs = new Map<string, number>();
 
@@ -56,15 +60,19 @@ export async function runLiveInvoices(
 
   const priors: PriorDocument[] = [];
   let spent = 0;
+  const spentByProject: Record<string, number> = {};
   const records: AuditRecord[] = [];
   const live = new Map<string, LiveInvoiceResult>();
   const merged: Invoice[] = [];
 
   for (const original of invoices) {
     const extracted = prepared.get(original.id);
-    const invoice = extracted?.invoice ?? original;
+    const invoice = assignProject(extracted?.invoice ?? original, projects);
+    const projectSpent = invoice.projectId ? (spentByProject[invoice.projectId] ?? 0) : 0;
+    const resolved = scopeFor(invoice, projects, projectSpent);
+    const appliedRules = effectiveRules(rules, resolved.rulesOverlay);
     const rulesStarted = performance.now();
-    const { hard } = evaluateHardRules(invoice, rules, priors, spent, [], asOf, market);
+    const { hard } = evaluateHardRules(invoice, appliedRules, priors, spent, [], asOf, market, undefined, resolved.scope);
     const rulesMs = Math.max(1, Math.round(performance.now() - rulesStarted));
 
     let jevTiming: LayerTiming = {
@@ -96,7 +104,7 @@ export async function runLiveInvoices(
       };
     }
 
-    const record = evaluateInvoice(invoice, rules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market);
+    const record = evaluateInvoice(invoice, appliedRules, priors, spent, hard.passed ? invoice.jevSnapshot : null, [], asOf, market, undefined, resolved.scope);
     merged.push(invoice);
     records.push(record);
     priors.push({
@@ -106,6 +114,9 @@ export async function runLiveInvoices(
     });
     if (record.finalStatus === "APPROVED") {
       spent = Number((spent + record.totalPayableUsd).toFixed(2));
+      if (invoice.projectId && resolved.scope?.assigned) {
+        spentByProject[invoice.projectId] = Number((projectSpent + record.totalPayableUsd).toFixed(2));
+      }
     }
 
     if (!wanted.has(original.id)) continue;

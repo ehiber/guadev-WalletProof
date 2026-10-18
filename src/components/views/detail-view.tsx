@@ -881,7 +881,7 @@ export function DetailView({ id }: { id: string }) {
                   <strong>{project?.name ?? (pending ? "Sin proyecto asignado" : "Por confirmar")}</strong>
                   <small>
                     {project
-                      ? `Identificado por ${project.code} en la factura.`
+                      ? invoice.projectAssignment?.evidence ?? `Asignado al proyecto ${project.code}.`
                       : pending
                         ? "No hay una referencia que permita identificarlo."
                         : "Sin una referencia de proyecto concluyente."}

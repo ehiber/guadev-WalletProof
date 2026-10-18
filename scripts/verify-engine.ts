@@ -3,6 +3,7 @@ import { DEFAULT_RULES, VENDORS } from "../src/lib/mock-data/company-rules";
 import { DEMO_ISSUE_DATE } from "../src/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "../src/lib/mock-data/initial-dataset";
 import { INITIAL_PROJECTS } from "../src/lib/mock-data/projects";
+import { matchProject } from "../src/lib/engine/project-matcher";
 
 const EXPECTED = [
   ["INV-01", "APPROVED"],
@@ -40,6 +41,51 @@ if (inv03.hardRulesResult.isWithinSingleLimit) {
 }
 
 let failed = false;
+
+const baseInvoice = INITIAL_DATASET[0];
+const explicitProject = matchProject(
+  { ...baseInvoice, projectId: undefined, description: "Servicio para Lanzamiento Andino", projectAssignment: undefined },
+  INITIAL_PROJECTS,
+);
+const uniqueProject = matchProject(
+  {
+    ...baseInvoice,
+    projectId: undefined,
+    projectAssignment: undefined,
+    vendorId: "vendor-nubemex",
+    currency: "MXN",
+    periodKey: "2026-10",
+    description: "Servicio mensual",
+    lineItems: ["Servicio mensual"],
+    evidenceNote: "Factura recibida",
+  },
+  INITIAL_PROJECTS,
+);
+const ambiguousProject = matchProject(
+  {
+    ...baseInvoice,
+    projectId: undefined,
+    projectAssignment: undefined,
+    currency: "USD",
+    description: "Servicio mensual",
+    lineItems: ["Servicio mensual"],
+    evidenceNote: "Factura recibida",
+  },
+  INITIAL_PROJECTS,
+);
+
+if (explicitProject?.projectId !== "prj-andino" || explicitProject.method !== "explicit-reference") {
+  console.error("Explicit project matching failed.");
+  failed = true;
+}
+if (uniqueProject?.projectId !== "prj-expansion-mexico" || uniqueProject.method !== "unique-eligibility") {
+  console.error("Unique eligibility project matching failed.");
+  failed = true;
+}
+if (ambiguousProject !== null) {
+  console.error("Ambiguous project matching must remain unassigned.");
+  failed = true;
+}
 
 if (INITIAL_DATASET.length !== 15 || INITIAL_PROJECTS.length !== 3 || VENDORS.length !== 8) {
   console.error(`Dataset mismatch: invoices=${INITIAL_DATASET.length}, projects=${INITIAL_PROJECTS.length}, vendors=${VENDORS.length}`);

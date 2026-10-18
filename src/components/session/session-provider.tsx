@@ -483,7 +483,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const response = await fetch("/api/evaluate", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ids, rules, keys, invoices }),
+          body: JSON.stringify({ ids, rules, keys, invoices, projects }),
         });
         const body = (await response.json()) as {
           error?: string;
@@ -509,7 +509,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setRunning(false);
       }
     },
-    [invoices, keys, rules],
+    [invoices, keys, projects, rules],
   );
 
   const reset = useCallback(() => {
@@ -547,6 +547,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         form.set("rules", JSON.stringify(rules));
         form.set("keys", JSON.stringify(keys));
         form.set("invoices", JSON.stringify(known));
+        form.set("projects", JSON.stringify(projects));
         const response = await fetch("/api/invoices", { method: "POST", body: form });
         const body = (await response.json()) as {
           error?: string;
@@ -584,7 +585,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return { invoice: null, error: error instanceof Error ? error.message : "No se pudo leer la factura." };
       }
     },
-    [keys, rules],
+    [keys, projects, rules],
   );
 
   const rememberUploaded = useCallback((known: Invoice[], invoice: Invoice) => {

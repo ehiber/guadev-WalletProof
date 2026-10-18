@@ -114,9 +114,17 @@ export interface JevResult {
   source: "snapshot" | "live";
 }
 
+export interface ProjectAssignment {
+  projectId: string;
+  method: "explicit-reference" | "unique-eligibility";
+  evidence: string;
+}
+
 export interface Invoice {
   id: string;
   projectId?: string;
+  projectReference?: string;
+  projectAssignment?: ProjectAssignment;
   invoiceNumber: string;
   vendorId: string;
   vendorName: string;
