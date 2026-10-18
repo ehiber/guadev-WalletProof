@@ -463,13 +463,14 @@ export function ProvidersView() {
             />
           </label>
           <label className="field">
-            <span>Moneda inicial</span>
+            <span>Moneda principal</span>
             <SelectMenu
-              label="Moneda inicial"
+              label="Moneda principal"
               value={form.currency}
               options={currencyChoices().map((choice) => ({ value: choice.code, label: choice.code }))}
               onChange={(currency) => setForm({ ...form, currency })}
             />
+            <small>Se usará como moneda predeterminada del proveedor. Podrás añadir otras después.</small>
           </label>
           <p className="plist-note">Se creará sin proyectos asignados. Los datos de esta muestra se conservan mientras la página está abierta.</p>
           <div className="button-row">

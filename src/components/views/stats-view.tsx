@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { usd } from "@/lib/format";
 import {
   buildStats,
@@ -227,18 +228,21 @@ export function StatsView() {
         </Link>
       </header>
       <div className="st-filters">
-        <label htmlFor="st-project">
-          Proyecto
-          <select id="st-project" value={project} onChange={(event) => go({ proyecto: event.target.value })}>
-            <option value="all">Toda la empresa</option>
-            {session.projects.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-                {item.status === "archived" ? " · Archivado" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="st-filter-field">
+          <span>Proyecto</span>
+          <SelectMenu
+            label="Proyecto"
+            value={project}
+            options={[
+              { value: "all", label: "Toda la empresa" },
+              ...session.projects.map((item) => ({
+                value: item.id,
+                label: `${item.name}${item.status === "archived" ? " · Archivado" : ""}`,
+              })),
+            ]}
+            onChange={(proyecto) => go({ proyecto })}
+          />
+        </div>
         <fieldset>
           <legend>Periodo</legend>
           {PERIODS.map((item) => (

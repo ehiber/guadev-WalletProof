@@ -304,7 +304,7 @@ export function ProjectView({ id }: { id: string }) {
             <h2>Gestión del proyecto</h2>
             <p>
               {active
-                ? "Sigue recibiendo facturas. Archivar lo saca de los activos sin borrar nada."
+                ? "Al archivarlo, dejará de aparecer entre los proyectos activos, pero conservarás sus facturas, acuerdos e historial."
                 : "Está archivado. Las facturas, los acuerdos y el historial siguen disponibles."}
             </p>
             {active ? (

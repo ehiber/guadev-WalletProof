@@ -91,9 +91,9 @@ const TRADE_NAME: Record<string, string> = {
   "vendor-andessoft": "AndesSoft Devs",
   "vendor-carlos": "Carlos Méndez",
   "vendor-lexglobal": "LexGlobal Advisory",
-  "vendor-nubemex": "Nube MÃ©xico Servicios Digitales",
+  "vendor-nubemex": "Nube México Servicios Digitales",
   "vendor-fiscalmx": "Fiscal MX Consultores",
-  "vendor-rutanorte": "Ruta Norte LogÃ­stica",
+  "vendor-rutanorte": "Ruta Norte Logística",
 };
 
 export function vendorStatusLabel(status: VendorStatus): string {

@@ -53,8 +53,8 @@ main:focus{outline:none}
 .invoice-search .icon{width:16px;height:16px;color:#7b8494;flex:none}
 .invoice-search input{border:0;background:transparent;outline:none;width:100%;font-size:14px;color:var(--ink)}
 .table-card{container-type:inline-size}
-.iv-table{--iv-gap:20px;display:grid;width:100%;column-gap:var(--iv-gap);justify-content:space-between;grid-template-columns:max-content max-content max-content minmax(8rem,16rem) max-content}
-.iv-table.cols-6{grid-template-columns:max-content max-content max-content max-content minmax(8rem,16rem) max-content}
+.iv-table{--iv-gap:20px;display:grid;width:100%;min-width:44rem;column-gap:var(--iv-gap);grid-template-columns:minmax(12rem,1.35fr) minmax(5.5rem,.7fr) minmax(7rem,.8fr) minmax(14rem,1.55fr) max-content}
+.iv-table.cols-6{min-width:58rem;grid-template-columns:minmax(12rem,1.2fr) minmax(10rem,1fr) minmax(5.5rem,.65fr) minmax(7rem,.7fr) minmax(14rem,1.5fr) max-content}
 .iv-table thead,.iv-table tbody{display:grid;grid-column:1/-1;grid-template-columns:subgrid}
 .iv-table tr{display:grid;grid-column:1/-1;grid-template-columns:subgrid;align-items:center;padding:16px 0}
 .iv-table thead tr{background:#fbfbfc;padding-top:14px;padding-bottom:14px}
@@ -386,6 +386,25 @@ button.iv-detail{border:0;background:transparent;padding:0}
 .pp-choice small{display:block;color:#8b95a7;font-weight:450}
 @media(max-width:900px){.vendor-grid,.vendor-pair{grid-template-columns:1fr}.vendor-savebar{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}}
 @media(max-width:900px){.id-grid{grid-template-columns:1fr}}
+@page{margin:12mm}
+@media print{
+  html,body{background:#fff!important;color:#1c253a!important}
+  .sidebar,.topbar,.ws-mobile-button,.back,.id-print,.id-actions,.id-fold,.id-foot,.toast,dialog{display:none!important}
+  .workspace{margin:0!important}
+  main{max-width:none!important;min-height:0!important;padding:0!important}
+  .id-page{max-width:none!important}
+  .id-heading{margin:0 0 7mm!important}
+  .id-title-row{display:block!important}
+  .id-title-row h1{font-size:22pt!important}
+  .id-grid{display:block!important}
+  .id-grid>div{display:block!important}
+  .id-sheet,.id-card,.id-decision{box-shadow:none!important;break-inside:avoid;page-break-inside:avoid}
+  .id-sheet{background:#fff!important;border-color:#cfd5e0!important}
+  .id-sheet .paper{box-shadow:none!important;border:1px solid #d9deea!important}
+  .id-card{margin-top:5mm!important}
+  .id-decision{margin-top:5mm!important}
+  .id-checks li{break-inside:avoid;page-break-inside:avoid}
+}
 .plist-tools{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:6px 0 16px}
 .plist-search{display:flex;align-items:center;gap:8px;flex:1;max-width:340px;height:42px;padding:0 14px;border:1px solid #e4e8f0;border-radius:12px;background:#fff}
 .plist-search input{width:100%;border:0;background:transparent;padding:0;color:var(--ink)}

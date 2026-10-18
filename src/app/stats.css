@@ -10,22 +10,15 @@
   background: var(--surface);
   margin-bottom: 24px;
 }
-.st-filters > label {
+.st-filter-field {
   display: grid;
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
   min-width: 230px;
 }
-.st-filters select {
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 8px 12px;
-  color: var(--ink);
-  background: var(--surface);
-  max-width: 100%;
-}
+.st-filters .invoice-select { width: 100%; }
+.st-filters .invoice-select > button { height: 44px; }
 .st-filters fieldset {
   margin: 0;
   padding: 0;
@@ -294,7 +287,7 @@
   .st-three { grid-template-columns: 1fr; }
   .st-three > article:last-child { grid-column: auto; }
   .st-filters { gap: 15px; padding: 16px; }
-  .st-filters > label { width: 100%; min-width: 0; }
+  .st-filter-field { width: 100%; min-width: 0; }
   .st-scope { width: 100%; font-size: 11px; }
   .st-tabs { gap: 0; }
   .st-tabs a { font-size: 12px; padding: 12px 10px; }

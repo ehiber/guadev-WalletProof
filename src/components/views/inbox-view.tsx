@@ -185,8 +185,8 @@ export function InboxView() {
         </span>
         <div>
           <strong id="test-invoices-title">Facturas de prueba</strong>
-          <p>Explora el dataset sintÃ©tico del reto, descarga una factura y usa “AÃ±adir factura” para que Wallet Proof la lea, decida y explique el resultado.</p>
-          <small>Incluye casos aprobables, de revisiÃ³n y de bloqueo. Cada archivo debe pesar menos de 4 MB.</small>
+          <p>Explora el dataset sintético del reto, descarga una factura y usa “Añadir factura” para que Wallet Proof la lea, decida y explique el resultado.</p>
+          <small>Incluye casos aprobables, de revisión y de bloqueo. Cada archivo debe pesar menos de 4 MB.</small>
         </div>
         <a className="btn" href={TEST_INVOICES_DRIVE_URL} target="_blank" rel="noreferrer">
           Abrir dataset <ExternalLink className="icon" />
