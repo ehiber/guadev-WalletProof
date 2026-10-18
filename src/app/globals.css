@@ -777,7 +777,7 @@ main > .panel {
 }
 
 /* Canonical compact shell: the sidebar is an overlay, never a second page header. */
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .sidebar {
     position: fixed;
     inset: 64px auto 0 0;
