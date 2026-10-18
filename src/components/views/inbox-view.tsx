@@ -4,6 +4,7 @@ import { BudgetMeter, purse } from "@/components/budget-meter";
 import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { amount, originLabel, statusClass, statusLabel, vendorDisplay } from "@/lib/format";
+import { MAX_INVOICES } from "@/lib/invoice-limits";
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
 import { inPeriod, parsePeriod } from "@/lib/stats/metrics";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
@@ -186,7 +187,10 @@ export function InboxView() {
         <div>
           <strong id="test-invoices-title">Facturas de prueba</strong>
           <p>Explora el dataset sintético del reto, descarga una factura y usa “Añadir factura” para que Wallet Proof la lea, decida y explique el resultado.</p>
-          <small>Incluye casos aprobables, de revisión y de bloqueo. Cada archivo debe pesar menos de 4 MB.</small>
+          <small>
+            Incluye facturas que pueden aprobarse, enviarse a revisión o bloquearse. Puedes tener hasta {MAX_INVOICES} facturas;
+            cada archivo debe pesar menos de 4 MB.
+          </small>
         </div>
         <a className="btn" href={TEST_INVOICES_DRIVE_URL} target="_blank" rel="noreferrer">
           Abrir dataset <ExternalLink className="icon" />

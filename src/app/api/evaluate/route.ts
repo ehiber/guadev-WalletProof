@@ -2,10 +2,11 @@ import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
 import { runLiveInvoices } from "@/lib/engine/live-pipeline";
 import { normalizeKeys } from "@/lib/engine/model-provider";
 import { parseInvoices, parseProjects, parseRules } from "@/lib/engine/schemas";
+import { MAX_INVOICES } from "@/lib/invoice-limits";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  ids: z.array(z.string().min(1)).min(1).max(24),
+  ids: z.array(z.string().min(1)).min(1).max(MAX_INVOICES),
   rules: z.unknown(),
   keys: z.unknown().optional(),
   invoices: z.unknown().optional(),

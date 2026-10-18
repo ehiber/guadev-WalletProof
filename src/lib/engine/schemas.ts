@@ -1,5 +1,6 @@
 import { isPayableCurrency } from "@/lib/engine/currency";
 import { CRITERION_ORDER, normalizeRules } from "@/lib/engine/criteria";
+import { MAX_INVOICES } from "@/lib/invoice-limits";
 import type { CompanyRules, CriterionId, Invoice, Project } from "@/types/blinka";
 import { z } from "zod";
 
@@ -82,7 +83,7 @@ export function parseRules(value: unknown): CompanyRules | null {
 }
 
 export function parseInvoices(value: unknown): Invoice[] | null {
-  const parsed = z.array(invoiceSchema).max(24).safeParse(value);
+  const parsed = z.array(invoiceSchema).max(MAX_INVOICES).safeParse(value);
   return parsed.success ? (parsed.data as Invoice[]) : null;
 }
 

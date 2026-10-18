@@ -2,6 +2,7 @@ import { ingestIncoming, MAX_DOCUMENT_BYTES, publishVerdict } from "@/lib/engine
 import { clientIp, takeLiveSlot } from "@/lib/engine/live-budget";
 import { normalizeKeys } from "@/lib/engine/model-provider";
 import { parseInvoices, parseProjects, parseRules } from "@/lib/engine/schemas";
+import { MAX_INVOICES } from "@/lib/invoice-limits";
 import { clearSession, listArrivals, publishRules, sessionHuman } from "@/lib/session-inbox";
 
 export async function GET() {
@@ -29,8 +30,8 @@ export async function POST(request: Request) {
   if (!rules || !existing || (rawProjects !== undefined && !projects)) {
     return Response.json({ error: "La bandeja o las reglas no son válidas." }, { status: 400 });
   }
-  if (existing.length >= 24) {
-    return Response.json({ error: "La bandeja llegó al tope de 24 facturas." }, { status: 400 });
+  if (existing.length >= MAX_INVOICES) {
+    return Response.json({ error: `La bandeja llegó al límite de ${MAX_INVOICES} facturas.` }, { status: 400 });
   }
   const limited = takeLiveSlot(clientIp(request));
   if (limited) {

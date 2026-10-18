@@ -1,7 +1,7 @@
 const TEN_MINUTES = 10 * 60_000;
 const ONE_HOUR = 60 * 60_000;
-const PER_IP = 20;
-const GLOBAL_MAX = 200;
+const PER_IP = 60;
+const GLOBAL_MAX = 500;
 
 type Bucket = { count: number; resetAt: number };
 
