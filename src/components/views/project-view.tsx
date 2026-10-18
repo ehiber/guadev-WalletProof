@@ -5,7 +5,7 @@ import { useSession } from "@/components/session/session-provider";
 import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { budgetMonthLabel, usd, vendorDisplay } from "@/lib/format";
 import type { VendorCard } from "@/lib/vendors/directory";
-import { ArrowLeft, ArrowRight, LayoutGrid, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, LayoutGrid, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 
@@ -156,8 +156,8 @@ export function ProjectView({ id }: { id: string }) {
           <h1>{project.name}</h1>
           {project.description ? <p>{project.description}</p> : null}
         </div>
-        <Link className="btn" href="/reglas" onClick={() => session.setActiveProjectId(project.id)}>
-          <SlidersHorizontal className="icon" /> Editar proyecto
+        <Link className="btn" href={`/proyectos/${project.id}/editar`}>
+          <Pencil className="icon" /> Editar proyecto
         </Link>
       </div>
       <p className="pg-meta">

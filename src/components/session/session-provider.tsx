@@ -85,6 +85,7 @@ type SessionValue = {
   createProjectOpen: boolean;
   setCreateProjectOpen: (open: boolean) => void;
   addProject: (input: NewProjectInput) => string | null;
+  updateProject: (projectId: string, input: NewProjectInput) => boolean;
   invoices: Invoice[];
   records: AuditRecord[];
   human: Record<string, HumanDecision>;
@@ -802,6 +803,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [projects],
   );
 
+  const updateProject = useCallback((projectId: string, input: NewProjectInput) => {
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    if (!name || !code || projects.some((item) => item.id !== projectId && item.code.toUpperCase() === code)) return false;
+    const description = input.description?.trim();
+    const vendorListName = input.vendorListName?.trim();
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.id !== projectId) return project;
+        return {
+          ...project,
+          name,
+          code,
+          description: description || undefined,
+          vendorListName: vendorListName || undefined,
+          budgetMonth: input.budgetMonth,
+          currencies: input.currencies,
+          vendorIds: input.vendorIds ?? [],
+          rules: { ...project.rules, monthlyBudgetUsd: input.monthlyBudgetUsd },
+        };
+      }),
+    );
+    return true;
+  }, [projects]);
+
   const saveVendorCard = useCallback((card: VendorCard) => {
     setVendorCards((current) => {
       const index = current.findIndex((item) => item.id === card.id);
@@ -907,6 +933,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     createProjectOpen,
     setCreateProjectOpen,
     addProject,
+    updateProject,
     invoices,
     records,
     human,

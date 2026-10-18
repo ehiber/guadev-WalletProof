@@ -11,17 +11,19 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "rea
 
 const VENDOR_PREVIEW = 5;
 
-export function ProjectCreateView() {
+export function ProjectCreateView({ projectId }: { projectId?: string }) {
   const session = useSession();
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [listName, setListName] = useState("");
-  const [budget, setBudget] = useState("0.00");
-  const [month, setMonth] = useState("2026-10");
-  const [currencies, setCurrencies] = useState<string[]>(["USD"]);
-  const [vendorIds, setVendorIds] = useState<string[]>([]);
+  const project = projectId ? session.projects.find((item) => item.id === projectId) : undefined;
+  const editing = Boolean(projectId);
+  const [name, setName] = useState(project?.name ?? "");
+  const [code, setCode] = useState(project?.code ?? "");
+  const [description, setDescription] = useState(project?.description ?? "");
+  const [listName, setListName] = useState(project?.vendorListName ?? "");
+  const [budget, setBudget] = useState(String(project?.rules.monthlyBudgetUsd ?? "0.00"));
+  const [month, setMonth] = useState(project?.budgetMonth ?? new Date().toISOString().slice(0, 7));
+  const [currencies, setCurrencies] = useState<string[]>(project?.currencies?.length ? project.currencies : ["USD"]);
+  const [vendorIds, setVendorIds] = useState<string[]>(project?.vendorIds ?? []);
   const [currencyQuery, setCurrencyQuery] = useState("");
   const [vendorQuery, setVendorQuery] = useState("");
   const [error, setError] = useState("");
@@ -68,7 +70,7 @@ export function ProjectCreateView() {
       setError("Selecciona al menos una moneda.");
       return;
     }
-    const id = session.addProject({
+    const input = {
       name: trimmed,
       code: normalized,
       description,
@@ -77,13 +79,34 @@ export function ProjectCreateView() {
       currencies,
       vendorIds,
       monthlyBudgetUsd: monthly,
-    });
+    };
+    if (projectId) {
+      if (!session.updateProject(projectId, input)) {
+        setError("Ese código ya identifica otro proyecto.");
+        return;
+      }
+      router.push(`/proyectos/${projectId}`);
+      return;
+    }
+    const id = session.addProject(input);
     if (!id) {
       setError("Ese código ya identifica otro proyecto.");
       return;
     }
     router.push(`/proyectos/${id}`);
   };
+
+  if (editing && !project) {
+    return (
+      <section className="panel empty-state">
+        <h1>Proyecto no encontrado</h1>
+        <p>El proyecto que intentas editar no existe o ya no está disponible.</p>
+        <Link className="btn" href="/proyectos">
+          <ArrowLeft className="icon" /> Volver a proyectos
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <form className="pg-create" onSubmit={submit}>
@@ -92,13 +115,17 @@ export function ProjectCreateView() {
       </Link>
       <div className="page-heading">
         <div>
-          <h1>Crear proyecto</h1>
-          <p>Configura su presupuesto, monedas y proveedores. Puedes ajustar sus criterios después.</p>
+          <h1>{editing ? "Editar proyecto" : "Crear proyecto"}</h1>
+          <p>
+            {editing
+              ? "Actualiza sus datos, presupuesto, monedas y proveedores. Sus criterios específicos se conservarán."
+              : "Configura su presupuesto, monedas y proveedores. Puedes ajustar sus criterios después."}
+          </p>
           <RequiredNote />
         </div>
         <div className="heading-actions">
           <button className="btn primary" type="submit">
-            <Check className="icon" /> Crear proyecto
+            <Check className="icon" /> {editing ? "Guardar cambios" : "Crear proyecto"}
           </button>
         </div>
       </div>
@@ -245,9 +272,9 @@ export function ProjectCreateView() {
               </p>
             ) : null}
             <button className="btn primary" type="submit">
-              <Check className="icon" /> Crear proyecto
+              <Check className="icon" /> {editing ? "Guardar cambios" : "Crear proyecto"}
             </button>
-            <Link className="btn" href="/proyectos">
+            <Link className="btn" href={projectId ? `/proyectos/${projectId}` : "/proyectos"}>
               Cancelar
             </Link>
             <p className="pg-caption">Las decisiones anteriores conservan las condiciones con las que se evaluaron.</p>
