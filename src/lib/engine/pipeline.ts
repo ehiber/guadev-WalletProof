@@ -17,6 +17,9 @@ function explain(record: Omit<AuditRecord, "explanation" | "auditHash">): string
     return `Aprobado en automático. El total equivalente es ${usd} USD, el proveedor está autorizado y las reglas duras y JEV coinciden.`;
   }
   if (record.finalStatus === "BLOCKED") {
+    if (record.hardRulesResult.bankAccountMatches === false) {
+      return `Rechazado. La cuenta indicada para el pago no coincide con las cuentas registradas del proveedor. Total equivalente: ${usd} USD.`;
+    }
     if (record.jevResult?.socialEngineeringRisk.score === "HIGH") {
       return `Rechazado por JEV. El mensaje tiene riesgo alto de manipulación o cambio de cuenta. Total equivalente: ${usd} USD.`;
     }

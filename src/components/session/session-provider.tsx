@@ -548,6 +548,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         form.set("keys", JSON.stringify(keys));
         form.set("invoices", JSON.stringify(known));
         form.set("projects", JSON.stringify(projects));
+        form.set(
+          "vendorAccounts",
+          JSON.stringify(Object.fromEntries(vendorCards.map((card) => [card.id, card.bankAccounts.map((account) => account.identifier)]))),
+        );
         const response = await fetch("/api/invoices", { method: "POST", body: form });
         const body = (await response.json()) as {
           error?: string;
@@ -585,7 +589,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return { invoice: null, error: error instanceof Error ? error.message : "No se pudo leer la factura." };
       }
     },
-    [keys, projects, rules],
+    [keys, projects, rules, vendorCards],
   );
 
   const rememberUploaded = useCallback((known: Invoice[], invoice: Invoice) => {

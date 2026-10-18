@@ -13,6 +13,7 @@ export const extractionSchema = z
     description: z.string().min(1),
     issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     projectReference: z.string().trim().min(1).optional(),
+    paymentAccountIdentifier: z.string().trim().min(1).optional(),
   })
   .refine((value) => Math.abs(value.subtotal + value.taxAmount - value.totalPayable) < 0.05, {
     message: "subtotal + taxAmount must equal totalPayable",
@@ -216,6 +217,7 @@ export function extractionFromInvoice(invoice: Invoice): Extraction {
     description: invoice.description,
     issueDate: invoice.issueDate,
     ...(invoice.projectReference ? { projectReference: invoice.projectReference } : {}),
+    ...(invoice.paymentAccountIdentifier ? { paymentAccountIdentifier: invoice.paymentAccountIdentifier } : {}),
   };
 }
 
@@ -232,5 +234,6 @@ export function applyExtraction(invoice: Invoice, extraction: Extraction): Invoi
     issueDate: extraction.issueDate,
     periodKey: extraction.issueDate.slice(0, 7),
     projectReference: extraction.projectReference,
+    paymentAccountIdentifier: extraction.paymentAccountIdentifier,
   };
 }

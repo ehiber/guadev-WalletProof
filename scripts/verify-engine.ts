@@ -4,6 +4,8 @@ import { DEMO_ISSUE_DATE } from "../src/lib/mock-data/fx-ledger";
 import { INITIAL_DATASET } from "../src/lib/mock-data/initial-dataset";
 import { INITIAL_PROJECTS } from "../src/lib/mock-data/projects";
 import { matchProject } from "../src/lib/engine/project-matcher";
+import { compareBankAccount, normalizeAccountIdentifier } from "../src/lib/engine/bank-account";
+import { extractionSchema } from "../src/lib/engine/model-provider";
 
 const EXPECTED = [
   ["INV-01", "APPROVED"],
@@ -41,6 +43,63 @@ if (inv03.hardRulesResult.isWithinSingleLimit) {
 }
 
 let failed = false;
+
+const differentAccount = compareBankAccount("TEST-NUEVA-9999", ["SYN-4412"]);
+const sameAccount = compareBankAccount(" syn 4412 ", ["SYN-4412"]);
+if (differentAccount.matches || !sameAccount.matches || normalizeAccountIdentifier("SYN-44 12") !== "SYN4412") {
+  console.error("Deterministic bank account comparison failed.");
+  failed = true;
+}
+const extractedAccount = extractionSchema.safeParse({
+  invoiceNumber: "WP-T26-018",
+  vendorName: "CloudNova Infrastructure LLC",
+  currency: "USD",
+  subtotal: 100,
+  taxAmount: 0,
+  totalPayable: 100,
+  description: "Hospedaje cloud, cómputo y almacenamiento.",
+  issueDate: "2026-10-18",
+  projectReference: "AND-26",
+  paymentAccountIdentifier: "TEST-NUEVA-9999",
+});
+if (!extractedAccount.success || extractedAccount.data.paymentAccountIdentifier !== "TEST-NUEVA-9999") {
+  console.error("Payment account extraction schema failed.");
+  failed = true;
+}
+
+const bankMismatch = evaluateBatch(
+  [{ ...INITIAL_DATASET[0], id: "BANK-MISMATCH", invoiceNumber: "BANK-MISMATCH", bankAccountCheck: differentAccount }],
+  DEFAULT_RULES,
+  [],
+  DEMO_ISSUE_DATE,
+  undefined,
+  undefined,
+  INITIAL_PROJECTS,
+)[0];
+if (bankMismatch.finalStatus !== "BLOCKED" || bankMismatch.hardRulesResult.bankAccountMatches !== false) {
+  console.error(`Bank account mismatch was not blocked: ${bankMismatch.finalStatus}`);
+  failed = true;
+}
+
+const reviewRules = {
+  ...DEFAULT_RULES,
+  criteria: DEFAULT_RULES.criteria.map((criterion) =>
+    criterion.id === "anomalyHigh" ? { ...criterion, action: "ESCALATED" as const } : criterion,
+  ),
+};
+const bankReview = evaluateBatch(
+  [{ ...INITIAL_DATASET[0], id: "BANK-REVIEW", invoiceNumber: "BANK-REVIEW", bankAccountCheck: differentAccount }],
+  reviewRules,
+  [],
+  DEMO_ISSUE_DATE,
+  undefined,
+  undefined,
+  INITIAL_PROJECTS,
+)[0];
+if (bankReview.finalStatus !== "ESCALATED") {
+  console.error(`Configured bank account review did not escalate: ${bankReview.finalStatus}`);
+  failed = true;
+}
 
 const baseInvoice = INITIAL_DATASET[0];
 const explicitProject = matchProject(

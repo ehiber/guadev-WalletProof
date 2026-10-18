@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   const existing = parseInvoices(readJson(form?.get("invoices")) ?? []);
   const rawProjects = readJson(form?.get("projects"));
   const projects = rawProjects === undefined ? undefined : parseProjects(rawProjects);
-  if (!rules || !existing || (rawProjects !== undefined && !projects)) {
+  const vendorAccounts = parseVendorAccounts(readJson(form?.get("vendorAccounts")));
+  if (!rules || !existing || (rawProjects !== undefined && !projects) || !vendorAccounts) {
     return Response.json({ error: "La bandeja o las reglas no son válidas." }, { status: 400 });
   }
   if (existing.length >= MAX_INVOICES) {
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       keys,
       existing,
       projects: projects ?? undefined,
+      vendorAccounts,
     });
     publishVerdict("pdf", outcome);
     return Response.json(outcome);
@@ -58,6 +60,16 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "No se pudo leer la factura.";
     return Response.json({ error: message }, { status: 400 });
   }
+}
+
+function parseVendorAccounts(value: unknown): Record<string, string[]> | null {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (!entries.every(([key, identifiers]) => key.length > 0 && Array.isArray(identifiers) && identifiers.every((item) => typeof item === "string"))) {
+    return null;
+  }
+  return Object.fromEntries(entries) as Record<string, string[]>;
 }
 
 function mimeFor(file: File): string {

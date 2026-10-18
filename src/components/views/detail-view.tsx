@@ -380,6 +380,7 @@ function technicalSnapshot(
 }
 
 function askedAccount(invoice: Invoice): string {
+  if (invoice.bankAccountCheck?.requested) return invoice.bankAccountCheck.requested;
   const line = invoice.lineItems.find((item) => /cuenta/i.test(item)) ?? "";
   const tail = line.match(/\d{4}/)?.[0];
   return tail ? `SYN-${tail}` : line || "una cuenta distinta";
@@ -421,7 +422,7 @@ function reviewIssues(
         detail: `${name} todavía no está autorizado para este proyecto.`,
         actions: [{ id: "add-vendor", label: "Añadir proveedor a la lista" }],
       });
-    } else if (check.id === "anomalyHigh") {
+    } else if (check.id === "anomalyHigh" || check.id === "bankAccount") {
       const saved = card?.bankAccounts[0]?.identifier;
       push({
         key: "bank",

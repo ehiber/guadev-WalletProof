@@ -122,6 +122,20 @@ export function describeChecks(invoice: Invoice, record: AuditRecord): CheckRow[
     },
   ];
 
+  if (invoice.bankAccountCheck) {
+    const bankCriterion = criterionOf(rules, "anomalyHigh");
+    rows.push({
+      id: "bankAccount",
+      label: "Cuenta de pago registrada",
+      pass: !bankCriterion.enabled || hard.bankAccountMatches !== false,
+      detail:
+        hard.bankAccountMatches !== false
+          ? `La cuenta ${invoice.bankAccountCheck.requested} está registrada para el proveedor.`
+          : `La cuenta ${invoice.bankAccountCheck.requested} no coincide con las cuentas registradas del proveedor.`,
+      action: bankCriterion.enabled && hard.bankAccountMatches === false ? bankCriterion.action : null,
+    });
+  }
+
   const hardRows: Array<{ id: CriterionId; pass: boolean; detail: string }> = [
     {
       id: "duplicate",

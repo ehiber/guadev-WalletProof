@@ -40,6 +40,12 @@ export const invoiceSchema = z.object({
   documentPath: z.string(),
   projectId: z.string().optional(),
   projectReference: z.string().optional(),
+  paymentAccountIdentifier: z.string().optional(),
+  bankAccountCheck: z.object({
+    requested: z.string(),
+    registered: z.array(z.string()),
+    matches: z.boolean(),
+  }).optional(),
   projectAssignment: z.object({
     projectId: z.string().min(1),
     method: z.enum(["explicit-reference", "unique-eligibility"]),

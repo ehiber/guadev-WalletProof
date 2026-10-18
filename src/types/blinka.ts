@@ -120,11 +120,19 @@ export interface ProjectAssignment {
   evidence: string;
 }
 
+export interface BankAccountCheck {
+  requested: string;
+  registered: string[];
+  matches: boolean;
+}
+
 export interface Invoice {
   id: string;
   projectId?: string;
   projectReference?: string;
   projectAssignment?: ProjectAssignment;
+  paymentAccountIdentifier?: string;
+  bankAccountCheck?: BankAccountCheck;
   invoiceNumber: string;
   vendorId: string;
   vendorName: string;
@@ -157,6 +165,7 @@ export interface HardRulesResult {
   isVendorWhitelisted: boolean;
   hasProject: boolean;
   isVendorOnProject: boolean;
+  bankAccountMatches?: boolean;
   fxValid: boolean;
   isWithinSingleLimit: boolean;
   isWithinPeriodBudget: boolean;

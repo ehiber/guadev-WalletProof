@@ -1,6 +1,6 @@
 import { findVendor } from "@/lib/mock-data/company-rules";
 import type { ByokKeys } from "@/lib/engine/model-provider";
-import type { AnomalyScore, CostCenter, Invoice, JevResult, NoulAnswer } from "@/types/blinka";
+import type { AnomalyScore, Invoice, JevResult, NoulAnswer } from "@/types/blinka";
 import { z } from "zod";
 
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
@@ -101,7 +101,7 @@ function jevRequest(invoice: Invoice, recent: Invoice[]) {
         currency: invoice.currency,
       },
       contract: vendor?.contractSummary ?? "Sin contrato.",
-      registeredBankAccountLast4: vendor?.bankAccountLast4 ?? null,
+      bankAccountCheck: invoice.bankAccountCheck ?? null,
       recentInvoices: recent.slice(-5).map((item) => ({
         id: item.id,
         invoiceNumber: item.invoiceNumber,
@@ -133,7 +133,7 @@ function jevRequest(invoice: Invoice, recent: Invoice[]) {
       Q3_ANOMALY_SCORE: {
         type: "score",
         instructions:
-          "¿Qué nivel de riesgo de manipulación, urgencia atípica o cambio no autorizado de datos bancarios presenta `invoice` frente a `registeredBankAccountLast4`?",
+          "¿Qué nivel de riesgo de manipulación o urgencia atípica presenta `invoice`? `bankAccountCheck` ya fue calculado por código: úsalo como contexto y no vuelvas a comparar ni inferir cuentas.",
         criteria: [
           "LOW: sin manipulación, sin urgencia atípica y sin cambio de cuenta.",
           "MEDIUM: hay presión o inconsistencia, pero no un fraude claro.",

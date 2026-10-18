@@ -80,6 +80,7 @@ export function evaluateHardRules(
   const isWithinPeriodBudget = withinCompanyBudget && withinProjectBudget;
   const hasProject = scope ? scope.assigned : true;
   const isVendorOnProject = scope ? !scope.assigned || scope.vendorOnProject : true;
+  const bankAccountMatches = invoice.bankAccountCheck?.matches;
   const duplicateCounts = criterionEnabled(rules, "duplicate") && isExactDuplicate;
   const whitelistCounts = criterionEnabled(rules, "whitelist") && !isVendorWhitelisted;
   const limitCounts = criterionEnabled(rules, "limit") && fxValid && !isWithinSingleLimit;
@@ -88,6 +89,7 @@ export function evaluateHardRules(
   const projectVendorCounts = Boolean(scope) && criterionEnabled(rules, "projectVendor") && hasProject && !isVendorOnProject;
   const lineCounts = criterionEnabled(rules, "lineCheck") && Boolean(invoice.lineCheck);
   const fxCounts = criterionEnabled(rules, "fx") && !fxValid;
+  const bankCounts = criterionEnabled(rules, "anomalyHigh") && bankAccountMatches === false;
   const reasons: string[] = [];
 
   if (fxCounts) reasons.push(`No hay tasa para ${invoice.currency} el ${asOf}.`);
@@ -99,6 +101,7 @@ export function evaluateHardRules(
   if (limitCounts) reasons.push("El total a pagar en USD supera el límite automático.");
   if (budgetCounts && !withinCompanyBudget) reasons.push("El total no cabe en el presupuesto restante del periodo.");
   if (budgetCounts && !withinProjectBudget) reasons.push("El total no cabe en el presupuesto del proyecto.");
+  if (bankCounts) reasons.push("La cuenta indicada para el pago no coincide con ninguna cuenta registrada del proveedor.");
 
   const passed =
     fxValid &&
@@ -108,7 +111,8 @@ export function evaluateHardRules(
     !projectVendorCounts &&
     !limitCounts &&
     !budgetCounts &&
-    !lineCounts;
+    !lineCounts &&
+    !bankCounts;
 
   return {
     fxSnapshot,
@@ -119,6 +123,7 @@ export function evaluateHardRules(
       isVendorWhitelisted,
       hasProject,
       isVendorOnProject,
+      bankAccountMatches,
       fxValid,
       isWithinSingleLimit,
       isWithinPeriodBudget,
@@ -157,6 +162,7 @@ export function decideStatus(hard: HardRulesResult, jev: JevResult | null, rules
   consider(hardFailures, rules, "projectVendor", hard.hasProject && !hard.isVendorOnProject);
   consider(hardFailures, rules, "limit", !hard.isWithinSingleLimit);
   consider(hardFailures, rules, "lineCheck", hard.lineCheck === true);
+  consider(hardFailures, rules, "anomalyHigh", hard.bankAccountMatches === false);
   const hardStatus = fromFailures(hardFailures);
   if (hardStatus) return hardStatus;
 

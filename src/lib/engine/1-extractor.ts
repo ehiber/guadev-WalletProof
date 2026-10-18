@@ -40,6 +40,7 @@ export interface PartialExtraction {
   description?: string;
   issueDate?: string;
   projectReference?: string;
+  paymentAccountIdentifier?: string;
 }
 
 export type DocumentRead =
@@ -55,7 +56,7 @@ export type DocumentRead =
     };
 
 const READ_SYSTEM =
-  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description, issueDate y, solo si aparece literalmente, projectReference. projectReference copia el nombre, código o identificador del proyecto; omítelo si no existe, sin inferirlo. currency es un código ISO 4217 o una de estas criptomonedas: BTC, ETH, USDT, USDC. Si el documento imprime un símbolo local, conviértelo: Bs, Bs., Bs.S, Bs.F, Bs.D y bolívar son VES; € o euro es EUR; R$ o real es BRL; sol, soles o S/ es PEN; colón o ₡ es CRC; peso chileno es CLP; boliviano es BOB; rand es ZAR. USDC en Base, Ethereum, Polygon, Celo o Solana sigue siendo USDC. bitcoin o ₿ es BTC; ether o ethereum es ETH; tether es USDT; USD Coin es USDC. issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
+  "Lee una factura sintética. Responde solo JSON con invoiceNumber, vendorName, currency, subtotal, taxAmount, totalPayable, description, issueDate y, solo si aparecen literalmente, projectReference y paymentAccountIdentifier. projectReference copia el nombre, código o identificador del proyecto. paymentAccountIdentifier copia exactamente el IBAN, número o identificador de la cuenta indicada para el pago; omítelo si no aparece, sin inferirlo. currency es un código ISO 4217 o una de estas criptomonedas: BTC, ETH, USDT, USDC. Si el documento imprime un símbolo local, conviértelo: Bs, Bs., Bs.S, Bs.F, Bs.D y bolívar son VES; € o euro es EUR; R$ o real es BRL; sol, soles o S/ es PEN; colón o ₡ es CRC; peso chileno es CLP; boliviano es BOB; rand es ZAR. USDC en Base, Ethereum, Polygon, Celo o Solana sigue siendo USDC. bitcoin o ₿ es BTC; ether o ethereum es ETH; tether es USDT; USD Coin es USDC. issueDate es la fecha de emisión tal como está impresa; si trae hora, cópiala también. Copia los números impresos. No calcules dólares. No apruebes ni rechaces el pago.";
 
 const FIELD_LABELS: Record<string, string> = {
   invoiceNumber: "número de factura",
@@ -125,6 +126,8 @@ export function partialExtraction(text: string): PartialExtraction {
       description: typeof normalized.description === "string" ? normalized.description : undefined,
       issueDate: issueDate && /^\d{4}-\d{2}-\d{2}$/.test(issueDate) ? issueDate : undefined,
       projectReference: typeof normalized.projectReference === "string" ? normalized.projectReference.trim() || undefined : undefined,
+      paymentAccountIdentifier:
+        typeof normalized.paymentAccountIdentifier === "string" ? normalized.paymentAccountIdentifier.trim() || undefined : undefined,
     };
   } catch {
     return {};
