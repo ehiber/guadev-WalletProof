@@ -7,8 +7,6 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  CircleHelp,
-  Clock,
   FileText,
   LayoutGrid,
   Mail,
@@ -36,7 +34,6 @@ const GROUPS: Array<{
   { id: "rules", href: "/reglas", label: "Criterios de aceptación", icon: SlidersHorizontal, section: "rules", match: (path) => path.startsWith("/reglas") },
   { id: "stats", href: "/estadisticas", label: "Estadísticas", icon: BarChart3, section: "stats", match: (path) => path.startsWith("/estadisticas") },
   { id: "rates", href: "/tasas", label: "Tasas", icon: Scale, match: (path) => path.startsWith("/tasas") },
-  { id: "activity", href: "/registro", label: "Registro", icon: Clock, match: (path) => path.startsWith("/registro") },
 ];
 
 export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -48,6 +45,7 @@ export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const activeProject = pathname.startsWith("/proyectos/") ? pathname.split("/")[2] : "";
   const rulesProject = pathname.startsWith("/reglas") ? params.get("proyecto") : null;
   const statsProject = pathname.startsWith("/estadisticas") ? params.get("proyecto") : null;
+  const statsTab = pathname.startsWith("/estadisticas") ? params.get("tab") : null;
 
   const ordered = orderedProjects(session.projects, session.nav.order);
   const overflow = usesFavorites(ordered.length);
@@ -100,7 +98,7 @@ export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
       <>
         <Link
           href="/estadisticas"
-          aria-current={pathname.startsWith("/estadisticas") && params.get("tab") !== "tecnico" && !statsProject ? "page" : undefined}
+          aria-current={pathname.startsWith("/estadisticas") && !statsTab && !statsProject ? "page" : undefined}
           onClick={onNavigate}
         >
           Resumen global
@@ -178,9 +176,9 @@ export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
                 </>
               ) : null}
               {item.id === "projects" ? (
-                <button className="ws-expand" type="button" aria-label="Crear proyecto" onClick={() => session.setCreateProjectOpen(true)}>
+                <Link className="ws-expand" href="/proyectos/nuevo" aria-label="Crear proyecto" onClick={onNavigate}>
                   <Plus className="icon" />
-                </button>
+                </Link>
               ) : null}
               {item.section ? (
                 <button
@@ -203,10 +201,6 @@ export function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         );
       })}
-      <Link href="/ayuda" aria-current={pathname.startsWith("/ayuda") ? "page" : undefined} onClick={onNavigate}>
-        <CircleHelp className="icon" />
-        <span>Ayuda</span>
-      </Link>
     </nav>
   );
 }

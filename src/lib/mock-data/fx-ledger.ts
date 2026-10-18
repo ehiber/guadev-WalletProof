@@ -7,6 +7,7 @@ const CRYPTO_SOURCE = "Libro sintético Blinka Guard — cripto de demo";
 
 export const FIAT_CODES = ["EUR", "BRL", "ARS", "PEN", "CRC", "COP", "MXN", "CLP", "BOB", "ZAR", "VES"] as const;
 export const CRYPTO_CODES = ["BTC", "ETH", "USDT", "USDC"] as const;
+export const LEDGER_CURRENCIES = ["USD", ...FIAT_CODES, ...CRYPTO_CODES] as const;
 export const USDC_NETWORKS = ["Base", "Ethereum", "Polygon", "Celo", "Solana"] as const;
 
 export const FX_LEDGER: Record<string, Partial<Record<string, FxRate>>> = {

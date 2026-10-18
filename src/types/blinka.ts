@@ -55,8 +55,24 @@ export interface Project {
   name: string;
   code: string;
   status: "active" | "archived";
+  description?: string;
+  vendorListName?: string;
+  /** Mes del presupuesto, `YYYY-MM`. */
+  budgetMonth?: string;
+  currencies?: string[];
   vendorIds: string[];
   rules: ProjectRules;
+}
+
+export interface NewProjectInput {
+  name: string;
+  code: string;
+  description?: string;
+  vendorListName?: string;
+  budgetMonth?: string;
+  currencies?: string[];
+  vendorIds?: string[];
+  monthlyBudgetUsd?: number;
 }
 
 export interface CompanyRules {

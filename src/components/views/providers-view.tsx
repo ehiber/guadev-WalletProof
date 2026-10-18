@@ -3,7 +3,7 @@
 import { useSession } from "@/components/session/session-provider";
 import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
 import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
-import { currencyChoices } from "@/lib/engine/currency";
+import { currencyChoices, isPayableCurrency } from "@/lib/engine/currency";
 import { COUNTRIES } from "@/lib/vendors/countries";
 import { amount, statusClass, statusLabel, usd } from "@/lib/format";
 import {
@@ -19,7 +19,7 @@ import {
   type VendorNote,
   type VendorStatus,
 } from "@/lib/vendors/directory";
-import { ArrowLeft, ArrowRight, Plus, Search, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Plus, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -121,6 +121,12 @@ function ProjectTags({
   );
 }
 
+const PAGE_OPTIONS = [5, 10, 20];
+
+function pageSizeOptions(total: number) {
+  return PAGE_OPTIONS.filter((size, index) => total > (index === 0 ? 0 : PAGE_OPTIONS[index - 1]));
+}
+
 const SERVICE_OPTIONS = VENDOR_CATEGORIES.filter((item) => item !== "Por confirmar");
 const ACCOUNT_TYPES = ["Corriente", "Ahorros", "Internacional"] as const;
 
@@ -150,6 +156,8 @@ export function ProvidersView() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [projectId, setProjectId] = useState("all");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_OPTIONS[0]);
   const [peek, setPeek] = useState<VendorPeek>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(EMPTY_VENDOR_FORM);
@@ -168,6 +176,13 @@ export function ProvidersView() {
       }),
     [projectId, query, session.projects, session.vendorCards],
   );
+  const sizeOptions = pageSizeOptions(visible.length);
+  const size = sizeOptions.includes(pageSize) ? pageSize : (sizeOptions[sizeOptions.length - 1] ?? PAGE_OPTIONS[0]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / size));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageRows = visible.slice(currentPage * size, currentPage * size + size);
+  const rangeStart = visible.length === 0 ? 0 : currentPage * size + 1;
+  const rangeEnd = Math.min(visible.length, (currentPage + 1) * size);
   const peeked = peek ? session.vendorCards.find((vendor) => vendor.id === peek.vendorId) : undefined;
   const peekedProjects = peeked ? session.projects.filter((project) => project.vendorIds.includes(peeked.id)) : [];
 
@@ -217,7 +232,15 @@ export function ProvidersView() {
         <label className="plist-search">
           <Search className="icon" />
           <span className="visually-hidden">Buscar por nombre</span>
-          <input type="search" value={query} placeholder="Buscar por nombre" onChange={(event) => setQuery(event.target.value)} />
+          <input
+            type="search"
+            value={query}
+            placeholder="Buscar por nombre"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(0);
+            }}
+          />
         </label>
         <SelectMenu
           label="Proyecto"
@@ -226,7 +249,10 @@ export function ProvidersView() {
             { value: "all", label: "Todos los proyectos" },
             ...session.projects.map((project) => ({ value: project.id, label: project.name })),
           ]}
-          onChange={setProjectId}
+          onChange={(id) => {
+            setProjectId(id);
+            setPage(0);
+          }}
         />
       </div>
       <section className="plist plist-vendors" aria-label="Proveedores">
@@ -236,6 +262,7 @@ export function ProvidersView() {
             <p>Prueba con otro nombre o con todos los proyectos.</p>
           </div>
         ) : (
+          <>
           <div className="table-wrap">
             <table>
               <thead>
@@ -250,7 +277,7 @@ export function ProvidersView() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((vendor) => {
+                {pageRows.map((vendor) => {
                   const projects = session.projects.filter((project) => project.vendorIds.includes(vendor.id));
                   const extraCurrencies = Math.max(0, vendor.currencies.length - 2);
                   const service = vendor.category === "Por confirmar" && vendor.service ? vendor.service : vendor.category;
@@ -299,11 +326,46 @@ export function ProvidersView() {
               </tbody>
             </table>
           </div>
+          <div className="table-footer iv-pager">
+            <span>
+              {rangeStart}–{rangeEnd} de {visible.length}
+            </span>
+            <div className="iv-pager-actions">
+              {sizeOptions.length > 1 ? (
+                <SelectMenu
+                  className="fit opens-up"
+                  label="Proveedores por página"
+                  value={String(size)}
+                  options={sizeOptions.map((option) => ({ value: String(option), label: `${option} por página` }))}
+                  onChange={(next) => {
+                    setPageSize(Number(next));
+                    setPage(0);
+                  }}
+                />
+              ) : null}
+              <div className="iv-pages" role="navigation" aria-label="Páginas de proveedores">
+                <button type="button" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+                  <ChevronLeft className="icon" />
+                </button>
+                {Array.from({ length: pageCount }, (_, index) => (
+                  <button key={index} type="button" aria-current={index === currentPage ? "page" : undefined} onClick={() => setPage(index)}>
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-label="Página siguiente"
+                  disabled={currentPage >= pageCount - 1}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  <ChevronRight className="icon" />
+                </button>
+              </div>
+            </div>
+          </div>
+          </>
         )}
       </section>
-      <p className="plist-count">
-        {visible.length} {visible.length === 1 ? "proveedor" : "proveedores"}
-      </p>
       <Dialog
         open={Boolean(peeked && peek?.kind === "projects")}
         title={peeked ? `Proyectos de ${peeked.name}` : "Proyectos"}
@@ -718,7 +780,7 @@ export function ProviderEditor({ id }: { id: string }) {
     if (!account.bank) missing.bank = "Escribe el banco.";
     if (!account.holder) missing.holder = "Escribe el titular.";
     if (!account.country) missing.country = "Escribe el país.";
-    if (!/^[A-Z]{3,5}$/.test(account.currency)) missing.currency = "Usa tres letras, por ejemplo USD.";
+    if (!isPayableCurrency(account.currency)) missing.currency = "Elige una moneda admitida, por ejemplo USD o USDT.";
     if (!account.identifier) missing.identifier = "Escribe el identificador.";
     setBankMissing(missing);
     if (Object.keys(missing).length > 0) return;

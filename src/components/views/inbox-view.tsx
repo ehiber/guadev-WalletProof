@@ -3,8 +3,9 @@
 import { BudgetMeter, purse } from "@/components/budget-meter";
 import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { amount, originLabel, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import { ALL_PROJECTS } from "@/lib/mock-data/projects";
+import { inPeriod, parsePeriod } from "@/lib/stats/metrics";
 import type { AuditRecord, DecisionStatus, Invoice } from "@/types/blinka";
 import { ArrowRight, ChevronLeft, ChevronRight, Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
@@ -63,22 +64,29 @@ export function InboxView() {
   const params = useSearchParams();
   const estado = params.get("estado");
   const alcance = params.get("alcance");
+  const proyecto = params.get("proyecto");
+  const periodo = params.get("periodo");
   useEffect(() => {
-    if (alcance === "todos") session.setActiveProjectId(ALL_PROJECTS);
-    if (estado === "revision") {
-      setFilter("ESCALATED");
-      setPage(0);
-    } else if (alcance === "todos") {
-      setFilter("ALL");
-      setPage(0);
+    if (proyecto && proyecto !== "all" && session.projects.some((item) => item.id === proyecto)) {
+      session.setActiveProjectId(proyecto);
+    } else if (alcance === "todos" || proyecto === "all") {
+      session.setActiveProjectId(ALL_PROJECTS);
     }
-  }, [alcance, estado, session.setActiveProjectId]);
+    if (estado === "revision") setFilter("ESCALATED");
+    else if (estado === "pagado") setFilter("APPROVED");
+    else if (estado === "rechazado") setFilter("BLOCKED");
+    else if (alcance === "todos" || proyecto) setFilter("ALL");
+    if (estado || alcance || proyecto) setPage(0);
+  }, [alcance, estado, proyecto, session.projects, session.setActiveProjectId]);
   const project = session.projects.find((item) => item.id === session.activeProjectId);
   const showAll = session.activeProjectId === ALL_PROJECTS;
-  const scoped = useMemo(
-    () => session.invoices.filter((invoice) => showAll || invoice.projectId === session.activeProjectId),
-    [session.activeProjectId, session.invoices, showAll],
-  );
+  const scoped = useMemo(() => {
+    const period = periodo === "7" || periodo === "30" || periodo === "90" ? parsePeriod(periodo) : null;
+    return session.invoices.filter((invoice) => {
+      if (!showAll && invoice.projectId !== session.activeProjectId) return false;
+      return period ? inPeriod(invoice.receivedAt, period) : true;
+    });
+  }, [periodo, session.activeProjectId, session.invoices, showAll]);
   const counts = useMemo(() => {
     const tally = { ALL: scoped.length, APPROVED: 0, ESCALATED: 0, BLOCKED: 0 };
     for (const invoice of scoped) {
@@ -304,7 +312,7 @@ export function InboxView() {
                           </strong>
                           {invoice.currency !== "USD" ? (
                             <small>
-                              {documentAmount(invoice.totalPayable)} {invoice.currency}
+                              {amount(invoice.totalPayable, invoice.currency)}
                             </small>
                           ) : null}
                         </td>

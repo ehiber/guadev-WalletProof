@@ -4,9 +4,9 @@ import { useSession, type CriterionWaiver } from "@/components/session/session-p
 import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
 import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { describeChecks, type CheckRow } from "@/lib/engine/criteria";
-import { currencyChoices } from "@/lib/engine/currency";
+import { currencyChoices, isPayableCurrency } from "@/lib/engine/currency";
 import { COUNTRIES } from "@/lib/vendors/countries";
-import { statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
+import { amount, statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import type { AuditRecord, DecisionStatus, Invoice, Project } from "@/types/blinka";
 import type { VendorCard } from "@/lib/vendors/directory";
 import { ArrowLeft, Check, ChevronRight, Printer, X } from "lucide-react";
@@ -41,7 +41,7 @@ function dueDate(iso: string): string {
 }
 
 function money(value: number, currency: string): string {
-  return `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  return amount(value, currency);
 }
 
 function conceptOf(invoice: Invoice): string {
@@ -668,13 +668,13 @@ export function DetailView({ id }: { id: string }) {
       if (!String(form.get("holder") ?? "").trim()) gaps.holder = "Escribe el titular.";
       if (!String(form.get("country") ?? "").trim()) gaps.country = "Escribe el país.";
       if (!String(form.get("identifier") ?? "").trim()) gaps.identifier = "Escribe el identificador de la cuenta.";
-      if (!/^[A-Z]{3}$/.test(String(form.get("currency") ?? "").trim().toUpperCase())) gaps.currency = "Usa tres letras, por ejemplo USD.";
+      if (!isPayableCurrency(String(form.get("currency") ?? "").trim().toUpperCase())) gaps.currency = "Elige una moneda admitida, por ejemplo USD o USDT.";
     }
     if (modal.kind === "fix-concept" && !String(form.get("concept") ?? "").trim()) gaps.concept = "Escribe el concepto.";
     if (modal.kind === "edit-invoice") {
       if (!String(form.get("concept") ?? "").trim()) gaps.concept = "Escribe el concepto.";
       if (!String(form.get("reference") ?? "").trim()) gaps.reference = "Escribe la referencia.";
-      if (!/^[A-Z]{3}$/.test(String(form.get("currency") ?? "").trim().toUpperCase())) gaps.currency = "Usa tres letras, por ejemplo USD.";
+      if (!isPayableCurrency(String(form.get("currency") ?? "").trim().toUpperCase())) gaps.currency = "Elige una moneda admitida, por ejemplo USD o USDT.";
       const total = Number(form.get("total"));
       if (!Number.isFinite(total) || total <= 0) gaps.total = "Indica un total mayor que cero.";
     }
@@ -727,7 +727,7 @@ export function DetailView({ id }: { id: string }) {
       const currency = String(form.get("currency") ?? "").trim().toUpperCase();
       const country = String(form.get("country") ?? "").trim();
       const accountType = String(form.get("accountType") ?? "").trim();
-      if (!currentCard || !bank || !holder || !identifier || !country || !/^[A-Z]{3}$/.test(currency)) return;
+      if (!currentCard || !bank || !holder || !identifier || !country || !isPayableCurrency(currency)) return;
       session.saveVendorCard({
         ...currentCard,
         bankAccounts: [
@@ -766,7 +766,7 @@ export function DetailView({ id }: { id: string }) {
       const reference = String(form.get("reference") ?? "").trim();
       const currency = String(form.get("currency") ?? "").trim().toUpperCase();
       const total = Number(form.get("total"));
-      if (!concept || !reference || !/^[A-Z]{3}$/.test(currency) || !Number.isFinite(total) || total <= 0) return;
+      if (!concept || !reference || !isPayableCurrency(currency) || !Number.isFinite(total) || total <= 0) return;
       const tax = currency === invoice.currency ? invoice.taxAmount : 0;
       session.updateInvoice(invoice.id, {
         description: concept,

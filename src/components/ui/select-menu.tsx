@@ -4,12 +4,14 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type SelectOption = { value: string; label: string };
+export type SelectGroup = { label: string; options: SelectOption[] };
 
 export function SelectMenu({
   label,
   value,
   defaultValue = "",
   options,
+  groups,
   onChange,
   name,
   invalid = false,
@@ -21,6 +23,7 @@ export function SelectMenu({
   value?: string;
   defaultValue?: string;
   options: SelectOption[];
+  groups?: SelectGroup[];
   onChange?: (value: string) => void;
   name?: string;
   invalid?: boolean;
@@ -33,7 +36,8 @@ export function SelectMenu({
   const root = useRef<HTMLDivElement>(null);
   const listId = useId();
   const current = value ?? internal;
-  const currentLabel = options.find((option) => option.value === current)?.label ?? "";
+  const all = [...options, ...(groups?.flatMap((group) => group.options) ?? [])];
+  const currentLabel = all.find((option) => option.value === current)?.label ?? "";
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +85,20 @@ export function SelectMenu({
               <button type="button" role="option" aria-selected={option.value === current} onClick={() => choose(option.value)}>
                 {option.label}
               </button>
+            </li>
+          ))}
+          {groups?.map((group) => (
+            <li key={group.label} className="select-group">
+              <span>{group.label}</span>
+              <ul>
+                {group.options.map((option) => (
+                  <li key={option.value}>
+                    <button type="button" role="option" aria-selected={option.value === current} onClick={() => choose(option.value)}>
+                      {option.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>

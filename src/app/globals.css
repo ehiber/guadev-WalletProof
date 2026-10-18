@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./codex.css";
 @import "./presentation.css";
+@import "./stats.css";
 
 .modal-backdrop {
   position: fixed;
@@ -274,3 +275,540 @@ main > .panel {
   opacity: 1;
   visibility: visible;
 }
+
+.cr-page .page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cr-page .btn {
+  min-height: 44px;
+}
+
+.cr-context {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.cr-context .field {
+  min-width: 240px;
+  margin: 0;
+}
+
+.cr-context-copy {
+  flex: 1;
+}
+
+.cr-context-copy strong {
+  display: block;
+}
+
+.cr-context-copy p,
+.cr-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cr-banner {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.cr-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 304px;
+  gap: 24px;
+  align-items: start;
+}
+
+.cr-main {
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+
+.cr-settings h2 {
+  margin-bottom: 20px;
+}
+
+.cr-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.cr-confidence output {
+  float: right;
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.cr-confidence input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.cr-settings .field-error:empty {
+  display: none;
+}
+
+.cr-side {
+  position: sticky;
+  top: 24px;
+}
+
+.cr-side .panel > p {
+  margin-bottom: 12px;
+}
+
+.cr-checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cr-checks li {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.cr-checks li > span {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cr-checks small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.cr-side .cr-note {
+  margin: 12px 0 0;
+  font-size: 11px;
+}
+
+.cr-list-count {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 0 8px;
+}
+
+.cr-checks-scroll {
+  max-height: clamp(240px, 32vh, 320px);
+  overflow-y: auto;
+  padding-right: 8px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.cr-section-head,
+.cr-group-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cr-section-head > div,
+.cr-group-head > div {
+  flex: 1;
+}
+
+.cr-group-head {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cr-fold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cr-title {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cr-title .cr-fold {
+  flex: 0 1 auto;
+}
+
+.cr-title .cr-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.cr-dialog .field small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cr-dialog .field-error {
+  min-height: 0;
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.cr-dialog .field-error:empty {
+  display: none;
+}
+
+.cr-group-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+.cr-fold strong {
+  display: block;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.cr-fold small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cr-fold .icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.cr-fold .cr-chevron-closed {
+  transform: rotate(-90deg);
+}
+
+.cr-group-head small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cr-bulk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.cr-bulk label,
+.cr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cr-page input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+
+.cr-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 6px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.cr-controls {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cr-pick {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.cr-row strong {
+  font-size: 13px;
+  display: block;
+  line-height: 1.5;
+}
+
+.cr-row small {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.cr-outcome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cr-outcome span {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cr-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  cursor: pointer;
+}
+
+.cr-page .cr-switch input {
+  position: absolute;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+}
+
+.cr-switch i {
+  width: 36px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  background: #cfd6e4;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.cr-switch i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(28, 37, 58, 0.18);
+  transition: transform 0.15s ease;
+}
+
+.cr-switch input:checked + i {
+  background: var(--danger);
+}
+
+.cr-switch input:checked + i::after {
+  transform: translateX(16px);
+}
+
+.cr-switch input:focus-visible + i {
+  outline: 3px solid #2a4bd0;
+  outline-offset: 2px;
+}
+
+.cr-switch b {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cr-row .cr-toggle {
+  min-height: 36px;
+}
+
+.cr-row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.cr-delete {
+  color: var(--danger);
+}
+
+.cr-page .cr-row-actions .cr-icon,
+.cr-page .cr-title .cr-icon,
+.cr-page .cr-row-actions .cr-delete {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+
+.cr-page .cr-row-actions .cr-icon,
+.cr-page .cr-title .cr-icon {
+  color: var(--muted);
+}
+
+.cr-page .cr-row-actions .cr-icon:hover,
+.cr-page .cr-title .cr-icon:hover {
+  background: var(--mint);
+  color: var(--accent);
+}
+
+.cr-page .cr-row-actions .cr-delete:hover {
+  background: var(--danger-bg);
+}
+
+.cr-row-actions .cr-delete span {
+  display: none;
+}
+
+.cr-row-actions .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.cr-disabled .cr-row-copy {
+  color: var(--muted);
+}
+
+.cr-disabled .cr-row-copy strong {
+  text-decoration: line-through;
+}
+
+.cr-group-off .cr-group-head {
+  border-left: 3px solid var(--muted);
+  padding-left: 12px;
+}
+
+.cr-global-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.cr-empty {
+  padding: 24px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cr-empty h3 {
+  margin-bottom: 8px;
+}
+
+.cr-dialog {
+  width: min(560px, calc(100% - 32px));
+  border: 0;
+  border-radius: 14px;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--ink);
+  overflow: visible;
+}
+
+.cr-dialog::backdrop {
+  background: #12182666;
+}
+
+.cr-dialog h2 {
+  margin-bottom: 24px;
+}
+
+.cr-dialog .button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.cr-dialog .cr-note {
+  margin: 0;
+}
+
+@media (min-width: 1450px) {
+  .cr-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+@media (max-width: 1050px) {
+  .cr-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 16px;
+  }
+
+  .cr-context {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .cr-context .field {
+    flex: 1;
+  }
+}
+
+@media (max-width: 800px) {
+  .cr-layout,
+  .cr-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cr-controls {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .cr-side {
+    position: static;
+  }
+
+  .cr-page .page-heading {
+    flex-direction: column;
+  }
+}
+
+.st-probe { color: red; }

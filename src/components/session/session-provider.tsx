@@ -23,7 +23,7 @@ import { DEMO_PROJECT_ID, INITIAL_PROJECTS } from "@/lib/mock-data/projects";
 import { OPENCLAW_DEMO_SECRET } from "@/lib/openclaw/constants";
 import { recordsToCsv } from "@/lib/utils/export-csv";
 import { maskAccount, seedVendorCards, type VendorCard } from "@/lib/vendors/directory";
-import type { AuditRecord, CompanyRules, DecisionStatus, FxRate, Invoice, Project, Vendor } from "@/types/blinka";
+import type { AuditRecord, CompanyRules, DecisionStatus, FxRate, Invoice, NewProjectInput, Project, ProjectRules, Vendor } from "@/types/blinka";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 const KEYS_STORAGE = "blinka-byok";
@@ -84,7 +84,7 @@ type SessionValue = {
   rememberProject: (id: string) => void;
   createProjectOpen: boolean;
   setCreateProjectOpen: (open: boolean) => void;
-  addProject: (input: { name: string; code: string; monthlyBudgetUsd?: number }) => string | null;
+  addProject: (input: NewProjectInput) => string | null;
   invoices: Invoice[];
   records: AuditRecord[];
   human: Record<string, HumanDecision>;
@@ -111,6 +111,8 @@ type SessionValue = {
   statusOf: (record: AuditRecord) => DecisionStatus;
   explanationOf: (invoice: Invoice, record: AuditRecord) => string;
   updateRules: (rules: CompanyRules) => void;
+  patchProjectRules: (projectId: string, patch: ProjectRules) => void;
+  setProjectStatus: (projectId: string, status: "active" | "archived") => void;
   setByokOpen: (open: boolean) => void;
   setDrawerOpen: (open: boolean) => void;
   setShowRaw: (value: boolean | ((current: boolean) => boolean)) => void;
@@ -440,6 +442,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setProjectStatus = useCallback((projectId: string, status: "active" | "archived") => {
+    setProjects((current) => current.map((project) => (project.id === projectId ? { ...project, status } : project)));
+  }, []);
+
+  const patchProjectRules = useCallback((projectId: string, patch: ProjectRules) => {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              rules: {
+                ...project.rules,
+                ...patch,
+                criteria: patch.criteria ? { ...project.rules.criteria, ...patch.criteria } : project.rules.criteria,
+              },
+            }
+          : project,
+      ),
+    );
+    setHuman({});
+  }, []);
+
   const runLive = useCallback(
     async (ids: string[]) => {
       setRunning(true);
@@ -716,7 +740,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addProject = useCallback(
-    (input: { name: string; code: string; monthlyBudgetUsd?: number }) => {
+    (input: NewProjectInput) => {
       const code = input.code.trim().toUpperCase();
       const name = input.name.trim();
       if (!name || !code || projects.some((item) => item.code.toUpperCase() === code)) return null;
@@ -724,12 +748,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       let id = `prj-${slug}`;
       let sequence = 2;
       while (projects.some((item) => item.id === id)) id = `prj-${slug}-${sequence++}`;
+      const description = input.description?.trim();
+      const vendorListName = input.vendorListName?.trim();
       const project: Project = {
         id,
         name,
         code,
         status: "active",
-        vendorIds: [],
+        description: description || undefined,
+        vendorListName: vendorListName || undefined,
+        budgetMonth: input.budgetMonth,
+        currencies: input.currencies,
+        vendorIds: input.vendorIds ?? [],
         rules: input.monthlyBudgetUsd == null ? {} : { monthlyBudgetUsd: input.monthlyBudgetUsd },
       };
       setProjects((current) => [...current, project]);
@@ -888,6 +918,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     statusOf,
     explanationOf,
     updateRules,
+    patchProjectRules,
+    setProjectStatus,
     setByokOpen,
     setDrawerOpen,
     setShowRaw,

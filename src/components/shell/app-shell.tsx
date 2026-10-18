@@ -3,7 +3,6 @@
 import { ByokModal } from "@/components/byok-modal";
 import { OpenClawDrawer } from "@/components/openclaw-drawer/openclaw-drawer";
 import { SideNav } from "@/components/shell/side-nav";
-import { ProjectCreateDialog } from "@/components/views/project-form";
 import { RateEditorProvider, useRateEditor } from "@/components/views/rate-editor";
 import { useSession } from "@/components/session/session-provider";
 import { fxRate } from "@/lib/format";
@@ -110,7 +109,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="contenido">{children}</main>
       </div>
       <ByokModal open={session.byokOpen} keys={session.keys} onClose={() => session.setByokOpen(false)} onSave={session.saveKeys} />
-      <ProjectCreateDialog open={session.createProjectOpen} onClose={() => session.setCreateProjectOpen(false)} />
       <OpenClawDrawer key={session.resetCount} open={session.drawerOpen} onClose={() => session.setDrawerOpen(false)} />
     </>
     </RateEditorProvider>

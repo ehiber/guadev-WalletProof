@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { ProjectCreateView } from "@/components/views/project-form";
 
 export default function NewProjectPage() {
-  redirect("/proyectos?crear=1");
+  return <ProjectCreateView />;
 }

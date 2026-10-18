@@ -3,7 +3,7 @@ import { completeWithRetry, normalizeKeys, resolveKeys, stripJson } from "@/lib/
 import { VENDOR_CATEGORIES, type VendorDraft } from "@/lib/vendors/directory";
 import { z } from "zod";
 
-const CURRENCIES = ["USD", "EUR", "BRL", "ARS", "PEN", "CRC", "COP", "MXN", "CLP", "BOB", "ZAR"] as const;
+const CURRENCIES = ["USD", "EUR", "BRL", "ARS", "PEN", "CRC", "COP", "MXN", "CLP", "BOB", "ZAR", "BTC", "ETH", "USDT", "USDC"] as const;
 
 function isCorridor(code: string): code is (typeof CURRENCIES)[number] {
   return (CURRENCIES as readonly string[]).includes(code);
@@ -62,7 +62,7 @@ const SYSTEM = [
   "Prohibido usar empresas, bancos, marcas o personas reales.",
   "El correo termina en @proveedor.example.",
   "La cuenta es ficticia: identificador SYN- y cuatro dígitos, por ejemplo SYN-4821.",
-  "Monedas: como máximo tres códigos de esta lista.",
+  `Monedas: como máximo tres códigos de esta lista, fiat o cripto: ${CURRENCIES.join(", ")}.`,
   `Categoría, una sola, de esta lista: ${VENDOR_CATEGORIES.join(", ")}.`,
   "Responde solo JSON con name, legal, email, country, service, category, currencies, bank, holder, bankCountry, accountCurrency, identifier.",
 ].join(" ");

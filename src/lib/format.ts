@@ -1,4 +1,36 @@
+import { isCryptoCurrency } from "@/lib/engine/currency";
 import type { DecisionStatus, IntakeChannel } from "@/types/blinka";
+
+const MONTHS_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+export function budgetMonthLabel(value: string | undefined): string | null {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) return null;
+  const [year, month] = value.split("-").map(Number);
+  const name = MONTHS_ES[month - 1];
+  return name ? `${name} de ${year}` : null;
+}
+
+export function budgetMonthOptions(startYear = 2026, count = 18) {
+  return Array.from({ length: count }, (_, index) => {
+    const month = (index % 12) + 1;
+    const year = startYear + Math.floor(index / 12);
+    const value = `${year}-${String(month).padStart(2, "0")}`;
+    return { value, label: `${MONTHS_ES[month - 1]} de ${year}` };
+  });
+}
 
 export function usd(value: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -10,7 +42,11 @@ export function fxRate(value: number): string {
 }
 
 export function amount(value: number, currency: string): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ${currency}`;
+  const digits = isCryptoCurrency(currency) && currency !== "USDT" && currency !== "USDC" ? 8 : 2;
+  return `${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits === 2 ? 2 : 0,
+    maximumFractionDigits: digits,
+  }).format(value)} ${currency}`;
 }
 
 export function payableLines(
