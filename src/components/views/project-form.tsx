@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { Dialog } from "@/components/ui/ui";
+import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -54,13 +54,20 @@ function ProjectCreateForm({ onClose }: { onClose: () => void }) {
   return (
     <form className="pg-form" onSubmit={submit}>
       <p>El proyecto hereda las reglas de la empresa. Aquí solo guardas un tope distinto, si hace falta.</p>
+      <RequiredNote />
       <label className="field">
-        <span>Nombre</span>
-        <input value={name} maxLength={80} required autoFocus onChange={(event) => setName(event.target.value)} />
+        <span>
+          Nombre
+          <RequiredMark />
+        </span>
+        <input value={name} maxLength={80} required aria-required="true" autoFocus onChange={(event) => setName(event.target.value)} />
       </label>
       <label className="field">
-        <span>Código</span>
-        <input value={code} maxLength={20} required placeholder="Ej. AND-26" onChange={(event) => setCode(event.target.value)} />
+        <span>
+          Código
+          <RequiredMark />
+        </span>
+        <input value={code} maxLength={20} required aria-required="true" placeholder="Ej. AND-26" onChange={(event) => setCode(event.target.value)} />
       </label>
       <label className="field">
         <span>Tope mensual en USD</span>

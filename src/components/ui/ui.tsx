@@ -25,15 +25,39 @@ export function Panel({ children, className = "" }: { children: ReactNode; class
   return <section className={`panel ${className}`.trim()}>{children}</section>;
 }
 
+export function RequiredMark() {
+  return (
+    <abbr className="req" title="Obligatorio">
+      *
+      <span className="visually-hidden"> (obligatorio)</span>
+    </abbr>
+  );
+}
+
+export function RequiredNote() {
+  return (
+    <p className="req-note">
+      <span className="req" aria-hidden="true">
+        *
+      </span>
+      Campo obligatorio
+    </p>
+  );
+}
+
 export function TextField({
   label,
   hint,
+  required,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) {
   return (
     <label className="field">
-      <span>{label}</span>
-      <input {...props} />
+      <span>
+        {label}
+        {required ? <RequiredMark /> : null}
+      </span>
+      <input required={required} aria-required={required || undefined} {...props} />
       {hint ? <small>{hint}</small> : null}
     </label>
   );
@@ -41,12 +65,16 @@ export function TextField({
 
 export function TextArea({
   label,
+  required,
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
   return (
     <label className="field">
-      <span>{label}</span>
-      <textarea {...props} />
+      <span>
+        {label}
+        {required ? <RequiredMark /> : null}
+      </span>
+      <textarea required={required} aria-required={required || undefined} {...props} />
     </label>
   );
 }

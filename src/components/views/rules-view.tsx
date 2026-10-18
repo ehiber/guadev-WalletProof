@@ -2,6 +2,7 @@
 
 import { useSession } from "@/components/session/session-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
+import { RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { CRITERION_LABEL } from "@/lib/engine/criteria";
 import { usd } from "@/lib/format";
 import type { CriterionAction, CriterionId, RuleCriterion } from "@/types/blinka";
@@ -140,9 +141,14 @@ export function RulesView() {
             <small>Rechazado</small>
           </div>
         </div>
+        <RequiredNote />
         <label className="field">
-          <span>Límite automático (USD)</span>
+          <span>
+            Límite automático (USD)
+            <RequiredMark />
+          </span>
           <input
+            aria-required="true"
             type="number"
             min={100}
             max={2000}
@@ -152,8 +158,12 @@ export function RulesView() {
           />
         </label>
         <label className="field">
-          <span>Presupuesto del periodo (USD)</span>
+          <span>
+            Presupuesto del periodo (USD)
+            <RequiredMark />
+          </span>
           <input
+            aria-required="true"
             type="number"
             min={1000}
             max={10000}
@@ -164,10 +174,14 @@ export function RulesView() {
         </label>
         <label className="range-field">
           <span>
-            Confianza JEV
+            <b>
+              Confianza JEV
+              <RequiredMark />
+            </b>
             <small>{Math.round(session.rules.jevConfidenceThreshold * 100)}%</small>
           </span>
           <input
+            aria-required="true"
             type="range"
             min={50}
             max={99}

@@ -2,7 +2,7 @@
 
 import { useSession, type CriterionWaiver } from "@/components/session/session-provider";
 import { SelectMenu } from "@/components/ui/select-menu";
-import { Dialog } from "@/components/ui/ui";
+import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { describeChecks, type CheckRow } from "@/lib/engine/criteria";
 import { statusClass, statusLabel, usd, vendorDisplay } from "@/lib/format";
 import type { AuditRecord, DecisionStatus, Invoice, Project } from "@/types/blinka";
@@ -1121,6 +1121,7 @@ export function DetailView({ id }: { id: string }) {
             submitModal(new FormData(event.currentTarget));
           }}
         >
+          {modal && (modal.kind !== "add-vendor" || project) ? <RequiredNote /> : null}
           {modal?.kind === "exception" ? (
             <>
               <h3>{modal.issue.title}</h3>
@@ -1134,8 +1135,12 @@ export function DetailView({ id }: { id: string }) {
             <>
               <p>Elige el proyecto al que corresponde esta factura. Después se revisa de nuevo.</p>
               <label className={`field${missing.projectId ? " invalid" : ""}`}>
-                <span>Proyecto</span>
+                <span>
+                  Proyecto
+                  <RequiredMark />
+                </span>
                 <SelectMenu
+                  required
                   label="Proyecto"
                   name="projectId"
                   defaultValue={project?.id ?? ""}
@@ -1158,8 +1163,11 @@ export function DetailView({ id }: { id: string }) {
                   {name} se añadirá a la lista de {project.name} y quedará autorizado.
                 </p>
                 <label className={`field${missing.service ? " invalid" : ""}`}>
-                  <span>Servicio acordado</span>
-                  <textarea name="service" rows={3} defaultValue={card?.service || conceptOf(invoice)} aria-invalid={Boolean(missing.service)} />
+                  <span>
+                    Servicio acordado
+                    <RequiredMark />
+                  </span>
+                  <textarea name="service" rows={3} defaultValue={card?.service || conceptOf(invoice)} aria-required="true" aria-invalid={Boolean(missing.service)} />
                   {missing.service ? <small className="field-error">{missing.service}</small> : null}
                 </label>
               </>
@@ -1176,13 +1184,19 @@ export function DetailView({ id }: { id: string }) {
               </p>
               <div className="form-grid">
                 <label className={`field${missing.bank ? " invalid" : ""}`}>
-                  <span>Banco</span>
-                  <input name="bank" defaultValue="Banco de ejemplo" aria-invalid={Boolean(missing.bank)} />
+                  <span>
+                    Banco
+                    <RequiredMark />
+                  </span>
+                  <input name="bank" defaultValue="Banco de ejemplo" aria-required="true" aria-invalid={Boolean(missing.bank)} />
                   {missing.bank ? <small className="field-error">{missing.bank}</small> : null}
                 </label>
                 <label className={`field${missing.holder ? " invalid" : ""}`}>
-                  <span>Titular</span>
-                  <input name="holder" defaultValue={card?.legal || invoice.vendorName} aria-invalid={Boolean(missing.holder)} />
+                  <span>
+                    Titular
+                    <RequiredMark />
+                  </span>
+                  <input name="holder" defaultValue={card?.legal || invoice.vendorName} aria-required="true" aria-invalid={Boolean(missing.holder)} />
                   {missing.holder ? <small className="field-error">{missing.holder}</small> : null}
                 </label>
                 <label className="field">
@@ -1199,18 +1213,27 @@ export function DetailView({ id }: { id: string }) {
                   />
                 </label>
                 <label className={`field${missing.country ? " invalid" : ""}`}>
-                  <span>País</span>
-                  <input name="country" defaultValue={card?.country || "Colombia"} aria-invalid={Boolean(missing.country)} />
+                  <span>
+                    País
+                    <RequiredMark />
+                  </span>
+                  <input name="country" defaultValue={card?.country || "Colombia"} aria-required="true" aria-invalid={Boolean(missing.country)} />
                   {missing.country ? <small className="field-error">{missing.country}</small> : null}
                 </label>
                 <label className={`field${missing.identifier ? " invalid" : ""}`}>
-                  <span>Identificador</span>
-                  <input name="identifier" defaultValue={modal.kind === "review-bank" ? askedAccount(invoice) : ""} placeholder="SYN-1001" aria-invalid={Boolean(missing.identifier)} />
+                  <span>
+                    Identificador
+                    <RequiredMark />
+                  </span>
+                  <input name="identifier" defaultValue={modal.kind === "review-bank" ? askedAccount(invoice) : ""} placeholder="SYN-1001" aria-required="true" aria-invalid={Boolean(missing.identifier)} />
                   {missing.identifier ? <small className="field-error">{missing.identifier}</small> : null}
                 </label>
                 <label className={`field${missing.currency ? " invalid" : ""}`}>
-                  <span>Moneda</span>
-                  <input name="currency" defaultValue={invoice.currency} aria-invalid={Boolean(missing.currency)} />
+                  <span>
+                    Moneda
+                    <RequiredMark />
+                  </span>
+                  <input name="currency" defaultValue={invoice.currency} aria-required="true" aria-invalid={Boolean(missing.currency)} />
                   {missing.currency ? <small className="field-error">{missing.currency}</small> : null}
                 </label>
               </div>
@@ -1220,8 +1243,11 @@ export function DetailView({ id }: { id: string }) {
             <>
               <p>El acuerdo cubre: {(card?.service || "sin servicio registrado").replace(/\.\s*$/, "")}.</p>
               <label className={`field${missing.concept ? " invalid" : ""}`}>
-                <span>Concepto de la factura</span>
-                <textarea name="concept" rows={3} defaultValue={conceptOf(invoice)} aria-invalid={Boolean(missing.concept)} />
+                <span>
+                  Concepto de la factura
+                  <RequiredMark />
+                </span>
+                <textarea name="concept" rows={3} defaultValue={conceptOf(invoice)} aria-required="true" aria-invalid={Boolean(missing.concept)} />
                 {missing.concept ? <small className="field-error">{missing.concept}</small> : null}
               </label>
             </>
@@ -1230,24 +1256,36 @@ export function DetailView({ id }: { id: string }) {
             <>
               <p>Estos datos se usan en la siguiente revisión. El documento sigue siendo de ejemplo.</p>
               <label className={`field${missing.concept ? " invalid" : ""}`}>
-                <span>Concepto</span>
-                <textarea name="concept" rows={3} defaultValue={conceptOf(invoice)} aria-invalid={Boolean(missing.concept)} />
+                <span>
+                  Concepto
+                  <RequiredMark />
+                </span>
+                <textarea name="concept" rows={3} defaultValue={conceptOf(invoice)} aria-required="true" aria-invalid={Boolean(missing.concept)} />
                 {missing.concept ? <small className="field-error">{missing.concept}</small> : null}
               </label>
               <div className="form-grid">
                 <label className={`field${missing.reference ? " invalid" : ""}`}>
-                  <span>Referencia</span>
-                  <input name="reference" defaultValue={invoice.invoiceNumber} aria-invalid={Boolean(missing.reference)} />
+                  <span>
+                    Referencia
+                    <RequiredMark />
+                  </span>
+                  <input name="reference" defaultValue={invoice.invoiceNumber} aria-required="true" aria-invalid={Boolean(missing.reference)} />
                   {missing.reference ? <small className="field-error">{missing.reference}</small> : null}
                 </label>
                 <label className={`field${missing.currency ? " invalid" : ""}`}>
-                  <span>Moneda</span>
-                  <input name="currency" defaultValue={invoice.currency} aria-invalid={Boolean(missing.currency)} />
+                  <span>
+                    Moneda
+                    <RequiredMark />
+                  </span>
+                  <input name="currency" defaultValue={invoice.currency} aria-required="true" aria-invalid={Boolean(missing.currency)} />
                   {missing.currency ? <small className="field-error">{missing.currency}</small> : null}
                 </label>
                 <label className={`field${missing.total ? " invalid" : ""}`}>
-                  <span>Total</span>
-                  <input name="total" type="number" step="0.01" defaultValue={invoice.totalPayable} aria-invalid={Boolean(missing.total)} />
+                  <span>
+                    Total
+                    <RequiredMark />
+                  </span>
+                  <input name="total" type="number" step="0.01" defaultValue={invoice.totalPayable} aria-required="true" aria-invalid={Boolean(missing.total)} />
                   {missing.total ? <small className="field-error">{missing.total}</small> : null}
                 </label>
               </div>
@@ -1257,8 +1295,11 @@ export function DetailView({ id }: { id: string }) {
             <>
               <p>1 USD equivale a esta cantidad de {invoice.currency}. Es una referencia de ejemplo.</p>
               <label className={`field${missing.rate ? " invalid" : ""}`}>
-                <span>Unidades por 1 USD</span>
-                <input name="rate" type="number" step="any" defaultValue={record.fxSnapshot?.rateToUsd ?? ""} aria-invalid={Boolean(missing.rate)} />
+                <span>
+                  Unidades por 1 USD
+                  <RequiredMark />
+                </span>
+                <input name="rate" type="number" step="any" defaultValue={record.fxSnapshot?.rateToUsd ?? ""} aria-required="true" aria-invalid={Boolean(missing.rate)} />
                 {missing.rate ? <small className="field-error">{missing.rate}</small> : null}
               </label>
             </>
@@ -1544,8 +1585,11 @@ function Acceptance({
   return (
     <>
       <label className={`id-confirm-line${invalid ? " invalid" : ""}`}>
-        <input type="checkbox" checked={accepted} aria-invalid={Boolean(invalid)} onChange={(event) => onAccepted(event.target.checked)} />
-        <span>{label}</span>
+        <input type="checkbox" checked={accepted} aria-required="true" aria-invalid={Boolean(invalid)} onChange={(event) => onAccepted(event.target.checked)} />
+        <span>
+          {label}
+          <RequiredMark />
+        </span>
       </label>
       {invalid ? <p className="field-error">{invalid}</p> : null}
       <label className="field">

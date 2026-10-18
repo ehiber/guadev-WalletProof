@@ -1,9 +1,10 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { SelectMenu } from "@/components/ui/select-menu";
-import { Dialog } from "@/components/ui/ui";
+import { SearchMenu, SelectMenu } from "@/components/ui/select-menu";
+import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { currencyChoices } from "@/lib/engine/currency";
+import { COUNTRIES } from "@/lib/vendors/countries";
 import { amount, statusClass, statusLabel, usd } from "@/lib/format";
 import {
   VENDOR_CATEGORIES,
@@ -18,10 +19,10 @@ import {
   type VendorNote,
   type VendorStatus,
 } from "@/lib/vendors/directory";
-import { ArrowLeft, ChevronRight, Mail, Plus, Search, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 const CREATE_LOADER = "Rellenando datos bancarios con fines de la demo.";
 
@@ -47,10 +48,100 @@ function CreateLoader() {
 
 type VendorPeek = { kind: "projects" | "currencies"; vendorId: string } | null;
 
+function ProjectTags({
+  projects,
+  onMore,
+}: {
+  projects: Array<{ id: string; name: string }>;
+  onMore: () => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const [count, setCount] = useState(projects.length);
+  const signature = projects.map((project) => project.id).join("\u0000");
+
+  useLayoutEffect(() => {
+    const node = host.current;
+    if (!node) return;
+    const fit = () => {
+      const width = node.clientWidth;
+      const tags = [...node.querySelectorAll<HTMLElement>("[data-tag]")];
+      const more = node.querySelector<HTMLElement>("[data-more]");
+      const moreWidth = more?.offsetWidth ?? 36;
+      const gap = 8;
+      let used = 0;
+      let next = 0;
+      for (const tag of tags) {
+        const reserve = tags.length - (next + 1) > 0 ? gap + moreWidth : 0;
+        const gapBefore = next > 0 ? gap : 0;
+        if (next > 0 && used + gapBefore + tag.offsetWidth + reserve > width) break;
+        used += gapBefore + tag.offsetWidth;
+        next += 1;
+      }
+      setCount(next);
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [signature]);
+
+  const hidden = projects.length - count;
+  return (
+    <div className="plist-fit" ref={host}>
+      <div className="plist-fit-measure" aria-hidden="true">
+        {projects.map((project) => (
+          <span key={project.id} className="plist-tag" data-tag="">
+            {project.name}
+          </span>
+        ))}
+        <span className="plist-more" data-more="">
+          +{Math.max(projects.length - 1, 1)}
+        </span>
+      </div>
+      <div className="plist-tags">
+        {projects.slice(0, count).map((project) => (
+          <Link key={project.id} className="plist-tag" href={`/proyectos/${project.id}`} onClick={(event) => event.stopPropagation()}>
+            {project.name}
+          </Link>
+        ))}
+        {hidden > 0 ? (
+          <button
+            className="plist-more"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMore();
+            }}
+          >
+            +{hidden}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const SERVICE_OPTIONS = VENDOR_CATEGORIES.filter((item) => item !== "Por confirmar");
+const ASSIGN_OPTIONS = 4;
+
+function projectMatches(name: string, code: string, query: string) {
+  const needle = query
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  if (!needle) return true;
+  const haystack = `${name} ${code}`
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  return haystack.includes(needle);
+}
 const EMPTY_VENDOR_FORM = { name: "", taxId: "", country: "", email: "", service: "", currency: "USD" };
 
 export function ProvidersView() {
   const session = useSession();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [projectId, setProjectId] = useState("all");
   const [peek, setPeek] = useState<VendorPeek>(null);
@@ -95,10 +186,10 @@ export function ProvidersView() {
       country: form.country.trim(),
       taxId: form.taxId.trim() || undefined,
       service: form.service.trim(),
-      category: "Por confirmar",
+      category: form.service.trim() || "Por confirmar",
       currencies: [form.currency || "USD"],
       status: "unregistered",
-      costCenter: "Other",
+      costCenter: costCenterFor(form.service.trim()),
       bankAccounts: [],
       notes: [],
       demoFilled: false,
@@ -132,7 +223,7 @@ export function ProvidersView() {
           onChange={setProjectId}
         />
       </div>
-      <section className="plist" aria-label="Proveedores">
+      <section className="plist plist-vendors" aria-label="Proveedores">
         {visible.length === 0 ? (
           <div className="empty">
             <h2>No hay proveedores que coincidan</h2>
@@ -158,7 +249,7 @@ export function ProvidersView() {
                   const extraCurrencies = Math.max(0, vendor.currencies.length - 2);
                   const service = vendor.category === "Por confirmar" && vendor.service ? vendor.service : vendor.category;
                   return (
-                    <tr key={vendor.id}>
+                    <tr key={vendor.id} className="iv-row" onClick={() => router.push(`/proveedores/${vendor.id}`)}>
                       <td>
                         <strong className="plist-name">{vendor.name}</strong>
                         {vendor.country ? <small>{vendor.country}</small> : null}
@@ -168,29 +259,32 @@ export function ProvidersView() {
                         <div className="plist-tags">
                           <span>{vendor.currencies.slice(0, 2).join(", ") || "—"}</span>
                           {extraCurrencies > 0 ? (
-                            <button className="plist-more" type="button" onClick={() => setPeek({ kind: "currencies", vendorId: vendor.id })}>
+                            <button
+                              className="plist-more"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setPeek({ kind: "currencies", vendorId: vendor.id });
+                              }}
+                            >
                               +{extraCurrencies}
                             </button>
                           ) : null}
                         </div>
                       </td>
-                      <td>
+                      <td className="plist-projects">
                         {projects.length === 0 ? (
                           <span className="plist-empty">Sin proyectos asignados</span>
                         ) : (
-                          <div className="plist-tags">
-                            <span className="plist-tag">{projects[0]?.name}</span>
-                            {projects.length > 1 ? (
-                              <button className="plist-more" type="button" onClick={() => setPeek({ kind: "projects", vendorId: vendor.id })}>
-                                +{projects.length - 1}
-                              </button>
-                            ) : null}
-                          </div>
+                          <ProjectTags
+                            projects={projects.map((project) => ({ id: project.id, name: project.name }))}
+                            onMore={() => setPeek({ kind: "projects", vendorId: vendor.id })}
+                          />
                         )}
                       </td>
                       <td>
-                        <Link className="btn sm" href={`/proveedores/${vendor.id}`}>
-                          Ver ficha <ChevronRight className="icon" />
+                        <Link className="iv-detail" href={`/proveedores/${vendor.id}`} onClick={(event) => event.stopPropagation()}>
+                          Ver ficha <ArrowRight className="icon" />
                         </Link>
                       </td>
                     </tr>
@@ -216,7 +310,9 @@ export function ProvidersView() {
         <ul className="plist-modal-list">
           {peekedProjects.map((project) => (
             <li key={project.id}>
-              <strong>{project.name}</strong>
+              <Link href={`/proyectos/${project.id}`}>
+                <strong>{project.name}</strong>
+              </Link>
             </li>
           ))}
         </ul>
@@ -251,9 +347,14 @@ export function ProvidersView() {
       </Dialog>
       <Dialog open={adding} title="Añadir proveedor" className="id-modal" onClose={() => setAdding(false)}>
         <form className="plist-form" noValidate onSubmit={addVendor}>
+          <RequiredNote />
           <label className={`field${nameInvalid ? " invalid" : ""}`}>
-            <span>Nombre</span>
+            <span>
+              Nombre
+              <RequiredMark />
+            </span>
             <input
+              aria-required="true"
               value={form.name}
               onChange={(event) => {
                 setForm({ ...form, name: event.target.value });
@@ -269,7 +370,13 @@ export function ProvidersView() {
             </label>
             <label className="field">
               <span>País</span>
-              <input value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} />
+              <SearchMenu
+                label="País"
+                placeholder="Buscar país"
+                value={form.country}
+                options={COUNTRIES.map((country) => ({ value: country, label: country }))}
+                onChange={(country) => setForm({ ...form, country })}
+              />
             </label>
           </div>
           <label className="field">
@@ -278,7 +385,14 @@ export function ProvidersView() {
           </label>
           <label className="field">
             <span>Servicio</span>
-            <input value={form.service} onChange={(event) => setForm({ ...form, service: event.target.value })} />
+            <SelectMenu
+              label="Servicio"
+              placeholder="Elige un servicio"
+              className="opens-up"
+              value={form.service}
+              options={SERVICE_OPTIONS.map((item) => ({ value: item, label: item }))}
+              onChange={(service) => setForm({ ...form, service })}
+            />
           </label>
           <label className="field">
             <span>Moneda inicial</span>
@@ -405,6 +519,25 @@ export function ProviderEditor({ id }: { id: string }) {
   const [noteMissing, setNoteMissing] = useState<Record<string, string>>({});
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignPick, setAssignPick] = useState<string[]>([]);
+  const [assignQuery, setAssignQuery] = useState("");
+  const [pickedProject, setPickedProject] = useState<string | null>(null);
+  const assignVisible = useMemo(() => {
+    const active = session.projects.filter((project) => project.status === "active");
+    const selected = active.filter((project) => assignPick.includes(project.id));
+    const others = active.filter((project) => !assignPick.includes(project.id));
+    if (assignQuery.trim()) {
+      const matched = active.filter((project) => projectMatches(project.name, project.code, assignQuery));
+      const picked = new Set(assignPick);
+      return {
+        rows: [...matched.filter((project) => picked.has(project.id)), ...matched.filter((project) => !picked.has(project.id))],
+        hidden: 0,
+      };
+    }
+    return {
+      rows: [...selected, ...others.slice(0, ASSIGN_OPTIONS)],
+      hidden: Math.max(0, others.length - ASSIGN_OPTIONS),
+    };
+  }, [assignPick, assignQuery, session.projects]);
   const [editing, setEditing] = useState<number | null>(null);
   const [bankForm, setBankForm] = useState({ bank: "", holder: "", country: "", currency: "USD", identifier: "", type: "" });
   const [bankMissing, setBankMissing] = useState<Record<string, string>>({});
@@ -646,11 +779,7 @@ export function ProviderEditor({ id }: { id: string }) {
           <button className="btn primary" type="button" disabled={creating} onClick={() => void createVendor()}>
             <Sparkles className="icon" /> {creating ? "Creando…" : "Crear proveedor"}
           </button>
-        ) : (
-          <Link className="btn" href="/correo">
-            <Mail className="icon" /> Ver correos
-          </Link>
-        )}
+        ) : null}
       </div>
       {creating ? <CreateLoader /> : null}
       {error ? (
@@ -662,10 +791,15 @@ export function ProviderEditor({ id }: { id: string }) {
         <div>
         <form id="vendor-form" className="panel" noValidate onSubmit={save}>
           <h2>Datos del proveedor</h2>
+          <RequiredNote />
           <div className="vendor-pair">
             <label className={`field${nameInvalid ? " invalid" : ""}`}>
-              <span>Nombre</span>
+              <span>
+                Nombre
+                <RequiredMark />
+              </span>
               <input
+                aria-required="true"
                 value={name}
                 onChange={(event) => {
                   setName(event.target.value);
@@ -707,7 +841,10 @@ export function ProviderEditor({ id }: { id: string }) {
             />
           </label>
           <div className="field vendor-suggest">
-            <span>Monedas que acepta</span>
+            <span>
+              Monedas que acepta
+              <RequiredMark />
+            </span>
             <input
               value={currencyQuery}
               placeholder="Buscar y añadir moneda"
@@ -759,7 +896,7 @@ export function ProviderEditor({ id }: { id: string }) {
           <div className="vendor-head">
             <h2>Notas e historial</h2>
             <button
-              className="btn vendor-pill"
+              className="btn primary"
               type="button"
               onClick={() => {
                 setNoteTitle("");
@@ -797,7 +934,7 @@ export function ProviderEditor({ id }: { id: string }) {
           <section className="panel">
             <div className="vendor-head">
               <h2>Datos bancarios</h2>
-              <button className="btn vendor-pill" type="button" onClick={() => openBank(-1)}>
+              <button className="btn primary" type="button" onClick={() => openBank(-1)}>
                 <Plus className="icon" /> Añadir cuenta
               </button>
             </div>
@@ -837,6 +974,7 @@ export function ProviderEditor({ id }: { id: string }) {
                 type="button"
                 onClick={() => {
                   setAssignPick(projectIds);
+                  setAssignQuery("");
                   setAssignOpen(true);
                 }}
               >
@@ -848,8 +986,17 @@ export function ProviderEditor({ id }: { id: string }) {
               const savedAgreement = agreements.find((item) => item.projectId === project.id);
               const cap = savedAgreement?.limitUsd ?? project.rules.maxAutoApproveUsd ?? session.rules.maxAutoApproveUsd;
               const money = (savedAgreement?.currencies ?? currencies).filter((code) => currencies.includes(code));
+              const selected = pickedProject === project.id;
               return (
-                <div key={project.id} className="vendor-project">
+                <div
+                  key={project.id}
+                  className={`vendor-project${selected ? " is-selected" : ""}`}
+                  aria-selected={selected}
+                  onClick={() => {
+                    setPickedProject(project.id);
+                    openAgreement(project.id);
+                  }}
+                >
                   <div className="vendor-project-copy">
                     <strong>{project.name}</strong>
                     <small>Lista {project.code}</small>
@@ -857,8 +1004,16 @@ export function ProviderEditor({ id }: { id: string }) {
                       Hasta {usd(cap)} USD · {money.length > 0 ? money.join(", ") : "USD"}
                     </small>
                   </div>
-                  <button className="btn sm vendor-agree" type="button" onClick={() => openAgreement(project.id)}>
-                    Ver acuerdo <ChevronRight className="icon" />
+                  <button
+                    className="iv-detail vendor-agree"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setPickedProject(project.id);
+                      openAgreement(project.id);
+                    }}
+                  >
+                    Ver acuerdo <ArrowRight className="icon" />
                   </button>
                 </div>
               );
@@ -901,9 +1056,14 @@ export function ProviderEditor({ id }: { id: string }) {
       </div>
       <Dialog open={noteOpen} title="Añadir nota" onClose={() => setNoteOpen(false)} className="id-modal">
         <form noValidate onSubmit={addNote}>
+          <RequiredNote />
           <label className={`field${noteMissing.title ? " invalid" : ""}`}>
-            <span>Título</span>
+            <span>
+              Título
+              <RequiredMark />
+            </span>
             <input
+              aria-required="true"
               value={noteTitle}
               placeholder="Ej.: Cuenta confirmada"
               onChange={(event) => {
@@ -914,8 +1074,12 @@ export function ProviderEditor({ id }: { id: string }) {
             {noteMissing.title ? <small className="field-error">{noteMissing.title}</small> : null}
           </label>
           <label className={`field${noteMissing.body ? " invalid" : ""}`}>
-            <span>Comentario</span>
+            <span>
+              Comentario
+              <RequiredMark />
+            </span>
             <textarea
+              aria-required="true"
               rows={4}
               maxLength={600}
               value={noteBody}
@@ -940,27 +1104,39 @@ export function ProviderEditor({ id }: { id: string }) {
       </Dialog>
       <Dialog open={assignOpen} title="Asignar proyectos" onClose={() => setAssignOpen(false)} className="id-modal">
         <p>Puedes seleccionar varios proyectos. Cada uno tendrá un acuerdo independiente.</p>
-        <div>
-          {session.projects
-            .filter((project) => project.status === "active")
-            .map((project) => (
-              <label key={project.id} className="pp-choice">
-                <input
-                  type="checkbox"
-                  checked={assignPick.includes(project.id)}
-                  onChange={() =>
-                    setAssignPick((current) =>
-                      current.includes(project.id) ? current.filter((item) => item !== project.id) : [...current, project.id],
-                    )
-                  }
-                />
-                <span>
-                  <strong>{project.name}</strong>
-                  <small>Lista {project.code}</small>
-                </span>
-              </label>
-            ))}
+        <label className="plist-search assign-search">
+          <Search className="icon" />
+          <span className="visually-hidden">Buscar proyecto</span>
+          <input
+            type="search"
+            value={assignQuery}
+            placeholder="Buscar proyecto"
+            onChange={(event) => setAssignQuery(event.target.value)}
+          />
+        </label>
+        <div className="assign-list">
+          {assignVisible.rows.map((project) => (
+            <label key={project.id} className="pp-choice">
+              <input
+                type="checkbox"
+                checked={assignPick.includes(project.id)}
+                onChange={() =>
+                  setAssignPick((current) =>
+                    current.includes(project.id) ? current.filter((item) => item !== project.id) : [...current, project.id],
+                  )
+                }
+              />
+              <span>
+                <strong>{project.name}</strong>
+                <small>Lista {project.code}</small>
+              </span>
+            </label>
+          ))}
+          {assignVisible.rows.length === 0 ? <p className="assign-empty">No hay proyectos con ese nombre.</p> : null}
         </div>
+        {assignVisible.hidden > 0 ? (
+          <p className="assign-more">Hay {assignVisible.hidden} proyectos más. Búscalos por nombre o por lista.</p>
+        ) : null}
         <p className="id-callout">Desmarcar un proyecto retira la asignación para nuevos pagos; no elimina facturas ni historial.</p>
         <div className="button-row">
           <button className="btn" type="button" onClick={() => setAssignOpen(false)}>
@@ -982,13 +1158,18 @@ export function ProviderEditor({ id }: { id: string }) {
         {agreement && agreementProject ? (
           <form className="agree-form" noValidate onSubmit={applyAgreement}>
             <p className="agree-list">Lista {agreementProject.code}</p>
+            <RequiredNote />
             <label className="field">
               <span>Servicio acordado</span>
               <textarea rows={3} value={agreement.service} onChange={(event) => setAgreement({ ...agreement, service: event.target.value })} />
             </label>
             <label className={`field${agreement.invalidLimit ? " invalid" : ""}`}>
-              <span>Límite por factura (USD)</span>
+              <span>
+                Límite por factura (USD)
+                <RequiredMark />
+              </span>
               <input
+                aria-required="true"
                 inputMode="decimal"
                 value={agreement.limit}
                 onChange={(event) => setAgreement({ ...agreement, limit: event.target.value, invalidLimit: false })}
@@ -996,7 +1177,10 @@ export function ProviderEditor({ id }: { id: string }) {
               {agreement.invalidLimit ? <small className="field-error">Escribe un límite mayor que cero.</small> : null}
             </label>
             <fieldset className={`agree-money${agreement.invalidCurrencies ? " invalid" : ""}`}>
-              <legend>Monedas del acuerdo</legend>
+              <legend>
+                Monedas del acuerdo
+                <RequiredMark />
+              </legend>
               <div>
                 {currencies.map((code) => (
                   <label key={code}>
@@ -1038,19 +1222,80 @@ export function ProviderEditor({ id }: { id: string }) {
         className="id-modal"
       >
         <form noValidate onSubmit={saveBank}>
+          <RequiredNote />
           {(
             [
               ["bank", "Banco", bankForm.bank],
               ["holder", "Titular", bankForm.holder],
-              ["country", "País", bankForm.country],
-              ["currency", "Moneda", bankForm.currency],
-              ["identifier", "Identificador", bankForm.identifier],
-              ["type", "Tipo de cuenta", bankForm.type],
             ] as const
           ).map(([key, label, value]) => (
             <label key={key} className={`field${bankMissing[key] ? " invalid" : ""}`}>
-              <span>{label}</span>
+              <span>
+                {label}
+                <RequiredMark />
+              </span>
               <input
+                aria-required="true"
+                value={value}
+                onChange={(event) => {
+                  setBankForm((current) => ({ ...current, [key]: event.target.value }));
+                  setBankMissing((current) => ({ ...current, [key]: "" }));
+                }}
+              />
+              {bankMissing[key] ? <small className="field-error">{bankMissing[key]}</small> : null}
+            </label>
+          ))}
+          <label className={`field${bankMissing.country ? " invalid" : ""}`}>
+            <span>
+              País
+              <RequiredMark />
+            </span>
+            <SearchMenu
+              required
+              label="País"
+              placeholder="Buscar país"
+              className="opens-up"
+              value={bankForm.country}
+              options={COUNTRIES.map((item) => ({ value: item, label: item }))}
+              onChange={(country) => {
+                setBankForm((current) => ({ ...current, country }));
+                setBankMissing((current) => ({ ...current, country: "" }));
+              }}
+            />
+            {bankMissing.country ? <small className="field-error">{bankMissing.country}</small> : null}
+          </label>
+          <label className={`field${bankMissing.currency ? " invalid" : ""}`}>
+            <span>
+              Moneda
+              <RequiredMark />
+            </span>
+            <SearchMenu
+              required
+              label="Moneda"
+              placeholder="Buscar moneda"
+              className="opens-up"
+              value={bankForm.currency}
+              options={currencyChoices().map((choice) => ({ value: choice.code, label: `${choice.code} · ${choice.name}` }))}
+              onChange={(currency) => {
+                setBankForm((current) => ({ ...current, currency }));
+                setBankMissing((current) => ({ ...current, currency: "" }));
+              }}
+            />
+            {bankMissing.currency ? <small className="field-error">{bankMissing.currency}</small> : null}
+          </label>
+          {(
+            [
+              ["identifier", "Identificador", bankForm.identifier, true],
+              ["type", "Tipo de cuenta", bankForm.type, false],
+            ] as const
+          ).map(([key, label, value, required]) => (
+            <label key={key} className={`field${bankMissing[key] ? " invalid" : ""}`}>
+              <span>
+                {label}
+                {required ? <RequiredMark /> : null}
+              </span>
+              <input
+                aria-required={required || undefined}
                 value={value}
                 onChange={(event) => {
                   setBankForm((current) => ({ ...current, [key]: event.target.value }));

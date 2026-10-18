@@ -1,6 +1,7 @@
 "use client";
 
 import { INVOICE_FILE_ACCEPT, useSession } from "@/components/session/session-provider";
+import { RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,7 +32,11 @@ export function NewInvoiceView() {
         </div>
       </div>
       <section className="panel upload-panel">
-        <h2>Documento de la factura</h2>
+        <h2>
+          Documento de la factura
+          <RequiredMark />
+        </h2>
+        <RequiredNote />
         <p>PDF, PNG, JPG, WEBP o GIF. Puedes elegir varias a la vez. La lectura la hace la capa de visión. Si faltan campos, el motor rechaza la factura.</p>
         <label className="upload-area">
           <strong>
@@ -41,6 +46,8 @@ export function NewInvoiceView() {
           <input
             type="file"
             multiple
+            required
+            aria-required="true"
             accept={INVOICE_FILE_ACCEPT}
             disabled={session.running}
             onChange={(event) => {

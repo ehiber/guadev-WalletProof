@@ -1,9 +1,10 @@
 "use client";
 
 import { useSession } from "@/components/session/session-provider";
-import { Dialog } from "@/components/ui/ui";
+import { SearchMenu } from "@/components/ui/select-menu";
+import { Dialog, RequiredMark, RequiredNote } from "@/components/ui/ui";
 import type { FxOverride } from "@/lib/engine/fx-overrides";
-import { isPayableCurrency, normalizeCurrency } from "@/lib/engine/currency";
+import { currencyChoices, isPayableCurrency, normalizeCurrency } from "@/lib/engine/currency";
 import { CRYPTO_CODES, DEMO_ISSUE_DATE, FIAT_CODES, lookupFx, paymentDate } from "@/lib/mock-data/fx-ledger";
 import { Plus, RefreshCw, Search, Star } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -38,6 +39,19 @@ const EMPTY_DRAFT: RateDraft = {
   featured: false,
   showErrors: false,
 };
+
+function rateSource(manual: FxOverride | undefined, market: { source: string } | undefined, ledger: { source: string } | null): string {
+  if (manual) return manual.sourceName?.trim() || "Manual";
+  if (market) return apiSource(market.source);
+  if (ledger) return "Tasa de ejemplo";
+  return "Sin fuente";
+}
+
+function apiSource(source: string): string {
+  if (source.includes("CoinGecko")) return "API · CoinGecko";
+  if (source.includes("ExchangeRate")) return "API · ExchangeRate";
+  return source;
+}
 
 function rateFigure(value: number): string {
   const digits = value >= 100 ? 2 : value >= 1 ? 4 : 8;
@@ -81,7 +95,7 @@ export function RatesView() {
           currency,
           rate,
           date: rate === null ? null : (manual?.date ?? market?.date ?? ledger?.date ?? asOf).slice(0, 10),
-          sourceLabel: manual ? "Manual" : "Carga inicial",
+          sourceLabel: rateSource(manual, market, ledger),
           manual,
         };
       })
@@ -160,6 +174,10 @@ export function RatesView() {
   }
 
   const parsed = draft ? parsedPair(draft) : null;
+  const currencyOptions = useMemo(
+    () => currencyChoices().map((choice) => ({ value: choice.code, label: `${choice.code} · ${choice.name}` })),
+    [],
+  );
 
   return (
     <>
@@ -301,23 +319,44 @@ export function RatesView() {
       <Dialog open={draft !== null} title="Añadir tasa manual" className="id-modal" onClose={() => setDraft(null)}>
         {draft ? (
           <form className="fx-form" noValidate onSubmit={save}>
+            <RequiredNote />
             <div className="vendor-pair">
               <label className={`field${draft.showErrors && parsed && !parsed.fromOk ? " invalid" : ""}`}>
-                <span>De</span>
-                <input
-                  placeholder="Ej.: USD"
+                <span>
+                  De
+                  <RequiredMark />
+                </span>
+                <SearchMenu
+                  label="De"
+                  required
+                  placeholder="Buscar moneda"
                   value={draft.from}
-                  onChange={(event) => setDraft({ ...draft, from: event.target.value })}
+                  options={currencyOptions}
+                  onChange={(from) => setDraft({ ...draft, from })}
                 />
               </label>
               <label className={`field${draft.showErrors && parsed && !parsed.toOk ? " invalid" : ""}`}>
-                <span>A</span>
-                <input placeholder="Ej.: COP" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} />
+                <span>
+                  A
+                  <RequiredMark />
+                </span>
+                <SearchMenu
+                  label="A"
+                  required
+                  placeholder="Buscar moneda"
+                  value={draft.to}
+                  options={currencyOptions}
+                  onChange={(to) => setDraft({ ...draft, to })}
+                />
               </label>
             </div>
             <label className={`field${draft.showErrors && parsed && !parsed.valueOk ? " invalid" : ""}`}>
-              <span>Valor por 1 unidad de origen</span>
+              <span>
+                Valor por 1 unidad de origen
+                <RequiredMark />
+              </span>
               <input
+                aria-required="true"
                 inputMode="decimal"
                 placeholder="Ej.: 4200"
                 value={draft.value}
@@ -331,7 +370,7 @@ export function RatesView() {
             <div className="vendor-pair">
               <label className="field">
                 <span>Fecha de aplicación</span>
-                <input readOnly value={asOf} />
+                <span className="fx-locked">{asOf}</span>
               </label>
               <label className="field">
                 <span>Fuente</span>

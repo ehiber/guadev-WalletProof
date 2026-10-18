@@ -1,6 +1,7 @@
 "use client";
 
 import { SyntheticDocument } from "@/components/synthetic-document";
+import { RequiredMark } from "@/components/ui/ui";
 import { amount, intakeLabel, statusClass, statusLabel, usd } from "@/lib/format";
 import type { LayerTiming } from "@/lib/engine/live-pipeline";
 import type { AuditRecord, DecisionStatus, Invoice, JevResult } from "@/types/blinka";
@@ -181,13 +182,18 @@ function HumanActions({
 
   return (
     <form className="space-y-2" onSubmit={(event) => event.preventDefault()}>
-      <textarea
-        name="note"
-        placeholder="Nota obligatoria para la excepción"
-        className="w-full rounded-lg border border-[#e6e8ee] px-3 py-2 text-sm"
-        rows={3}
-        onChange={() => setMissingNote(false)}
-      />
+      <label className="block text-sm font-medium text-[#121826]">
+        Nota
+        <RequiredMark />
+        <textarea
+          name="note"
+          aria-required="true"
+          placeholder="Escribe por qué se hace la excepción"
+          className="mt-1 w-full rounded-lg border border-[#e6e8ee] px-3 py-2 text-sm font-normal"
+          rows={3}
+          onChange={() => setMissingNote(false)}
+        />
+      </label>
       {missingNote ? <p className="text-sm text-rose-700">La nota es obligatoria.</p> : null}
       <div className="flex flex-wrap gap-2">
         <button

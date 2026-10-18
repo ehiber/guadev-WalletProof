@@ -1,5 +1,6 @@
 "use client";
 
+import { RequiredMark, RequiredNote } from "@/components/ui/ui";
 import { fxTickerRates } from "@/lib/mock-data/fx-ledger";
 import { usd } from "@/lib/format";
 import type { CompanyRules } from "@/types/blinka";
@@ -31,6 +32,9 @@ export function RuleBuilder({
   return (
     <section className="grid gap-4 rounded-xl border border-[#e6e8ee] bg-white p-4 lg:grid-cols-[1.4fr_0.8fr]">
       <div className="grid gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-3">
+          <RequiredNote />
+        </div>
         <Slider
           label="Límite automático"
           min={100}
@@ -108,12 +112,16 @@ function Slider({
   return (
     <label className="block">
       <span className="flex items-baseline justify-between gap-2 text-sm">
-        <span className="text-[#5c6575]">{label}</span>
+        <span className="text-[#5c6575]">
+          {label}
+          <RequiredMark />
+        </span>
         <span className="font-medium tabular-nums text-[#121826]">{display}</span>
       </span>
       <input
         className="mt-2 w-full accent-[#121826]"
         type="range"
+        aria-required="true"
         min={min}
         max={max}
         step={step}
